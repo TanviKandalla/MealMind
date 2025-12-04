@@ -12,7 +12,7 @@ type RecipeDiscoveryProps = {
   recipes: Recipe[];
 };
 
-export function RecipeDiscovery({ recipes }: RecipeDiscoveryProps) {
+export function RecipeDiscovery({ recipes = [] }: RecipeDiscoveryProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [costFilter, setCostFilter] = useState<string>('all');
   const [timeFilter, setTimeFilter] = useState<string>('all');
@@ -25,13 +25,24 @@ export function RecipeDiscovery({ recipes }: RecipeDiscoveryProps) {
     setShowRecipeDialog(true);
   };
 
+  // --- SAFETY LAYER: DEFENSIVE FILTERING ---
   const filteredRecipes = recipes.filter((recipe) => {
-    const matchesSearch = recipe.name.toLowerCase().includes(searchQuery.toLowerCase());
+    // 1. If recipe is somehow null/undefined, skip it
+    if (!recipe) return false;
+
+    // 2. Safe access to name (defaults to empty string if missing)
+    const name = recipe.name || '';
+    const matchesSearch = name.toLowerCase().includes(searchQuery.toLowerCase());
+
     const matchesCost = costFilter === 'all' || recipe.cost === costFilter;
+    
+    // 3. Safe access to time (defaults to 0 if missing)
+    const time = recipe.time || 0;
     const matchesTime = timeFilter === 'all' || 
-      (timeFilter === 'quick' && recipe.time <= 30) ||
-      (timeFilter === 'medium' && recipe.time > 30 && recipe.time <= 60) ||
-      (timeFilter === 'long' && recipe.time > 60);
+      (timeFilter === 'quick' && time <= 30) ||
+      (timeFilter === 'medium' && time > 30 && time <= 60) ||
+      (timeFilter === 'long' && time > 60);
+      
     const matchesSkill = skillFilter === 'all' || recipe.skillLevel === skillFilter;
 
     return matchesSearch && matchesCost && matchesTime && matchesSkill;
@@ -105,18 +116,19 @@ export function RecipeDiscovery({ recipes }: RecipeDiscoveryProps) {
       <div className="space-y-4">
         {filteredRecipes.length > 0 ? (
           filteredRecipes.map((recipe) => (
-            <Card key={recipe.id}>
+            <Card key={recipe.id || Math.random()}> {/* Fallback key if ID missing */}
               <CardContent className="p-6">
                 <div className="flex justify-between items-start">
                   <div className="flex-1">
-                    <h3 className="text-gray-900 mb-2">{recipe.name}</h3>
+                    <h3 className="text-gray-900 mb-2">{recipe.name || 'Untitled Recipe'}</h3>
                     <div className="flex space-x-4 text-sm text-gray-600">
-                      <span>Cost: {recipe.cost}</span>
-                      <span>Time: {recipe.time} min</span>
-                      <span>Skill: {recipe.skillLevel}</span>
+                      <span>Cost: {recipe.cost || 'N/A'}</span>
+                      <span>Time: {recipe.time || 0} min</span>
+                      <span>Skill: {recipe.skillLevel || 'N/A'}</span>
                     </div>
                     <p className="text-gray-700 mt-2">
-                      Ingredients: {recipe.ingredients.join(', ')}
+                      {/* Safe Join: Checks if ingredients is an array before joining */}
+                      Ingredients: {(recipe.ingredients || []).join(', ')}
                     </p>
                   </div>
                   <Button
@@ -140,9 +152,9 @@ export function RecipeDiscovery({ recipes }: RecipeDiscoveryProps) {
       <Dialog open={showRecipeDialog} onOpenChange={setShowRecipeDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{selectedRecipe?.name}</DialogTitle>
+            <DialogTitle>{selectedRecipe?.name || 'Recipe Details'}</DialogTitle>
             <DialogDescription>
-              Recipe details
+              Full recipe information
             </DialogDescription>
           </DialogHeader>
           {selectedRecipe && (
@@ -150,14 +162,15 @@ export function RecipeDiscovery({ recipes }: RecipeDiscoveryProps) {
               <div>
                 <h3 className="text-gray-900 mb-2">Ingredients</h3>
                 <ul className="list-disc list-inside space-y-1">
-                  {selectedRecipe.ingredients.map((ingredient, index) => (
+                  {/* Safe Map: Checks if ingredients is an array before mapping */}
+                  {(selectedRecipe.ingredients || []).map((ingredient, index) => (
                     <li key={index} className="text-gray-700">{ingredient}</li>
                   ))}
                 </ul>
               </div>
               <div>
                 <h3 className="text-gray-900 mb-2">Instructions</h3>
-                <p className="text-gray-700">{selectedRecipe.instructions}</p>
+                <p className="text-gray-700">{selectedRecipe.instructions || 'No instructions provided.'}</p>
               </div>
               <div className="flex space-x-4 text-sm">
                 <span className="text-gray-600">Time: {selectedRecipe.time} min</span>
