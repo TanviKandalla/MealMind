@@ -27,7 +27,7 @@ export function Login({ onLogin, onBackToLanding, onSwitchToSignUp }: LoginProps
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center space-x-2 mb-4">
             <ChefHat className="size-10 text-orange-600" />
-            <span className="text-gray-900 text-2xl">RecipeAI</span>
+            <span className="text-gray-900 text-2xl">MealMind</span>
           </div>
           <h1 className="text-gray-900 mb-2">Welcome back</h1>
           <p className="text-gray-600">Your kitchen missed you</p>

@@ -15,7 +15,7 @@ export function LandingPage({ onGetStarted, onLogin }: LandingPageProps) {
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           <div className="flex items-center space-x-2">
             <ChefHat className="size-8 text-orange-600" />
-            <span className="text-gray-900 text-xl">RecipeAI</span>
+            <span className="text-gray-900 text-xl">MealMind</span>
           </div>
           <Button variant="ghost" onClick={onLogin}>
             Log In
@@ -138,7 +138,7 @@ export function LandingPage({ onGetStarted, onLogin }: LandingPageProps) {
       {/* Footer */}
       <footer className="bg-gray-900 text-gray-400 py-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <p>&copy; 2025 RecipeAI. Because life's too short for boring meals.</p>
+          <p>&copy; 2025 MealMind. Because life's too short for boring meals.</p>
         </div>
       </footer>
     </div>

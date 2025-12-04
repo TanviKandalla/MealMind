@@ -28,7 +28,7 @@ export function SignUp({ onSignUp, onBackToLanding, onSwitchToLogin }: SignUpPro
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center space-x-2 mb-4">
             <ChefHat className="size-10 text-orange-600" />
-            <span className="text-gray-900 text-2xl">RecipeAI</span>
+            <span className="text-gray-900 text-2xl">MealMind</span>
           </div>
           <h1 className="text-gray-900 mb-2">Start your journey</h1>
           <p className="text-gray-600">Better meals are just a sign-up away</p>
