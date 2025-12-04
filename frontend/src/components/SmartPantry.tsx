@@ -41,13 +41,16 @@ export function SmartPantry({ pantryItems, onAddItem }: SmartPantryProps) {
 
       {/* Pantry Items List */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-        {pantryItems.map((item) => (
-          <Card key={item.id} className="hover:shadow-md transition-shadow">
-            <CardContent className="p-4">
-              <h3 className="text-gray-900 font-medium mb-1">{item.name}</h3>
-              <p className="text-gray-600 text-sm bg-gray-100 inline-block px-2 py-1 rounded">{item.quantity}</p>
-            </CardContent>
-          </Card>
+        {pantryItems
+          // FIX: Filter out items that have no name (ghost items)
+          .filter(item => item.name && item.name.trim() !== '') 
+          .map((item) => (
+            <Card key={item.id} className="hover:shadow-md transition-shadow">
+              <CardContent className="p-4">
+                <h3 className="text-gray-900 font-medium mb-1">{item.name}</h3>
+                <p className="text-gray-600 text-sm bg-gray-100 inline-block px-2 py-1 rounded">{item.quantity}</p>
+              </CardContent>
+            </Card>
         ))}
       </div>
 

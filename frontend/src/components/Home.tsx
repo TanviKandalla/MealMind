@@ -61,20 +61,20 @@ export function Home({ pantryItems, isStructuredMode, mealPlan, onNavigateToPant
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
       {/* Hero Section */}
       <div className="text-center mb-12">
-        <h1 className="text-gray-900 mb-6">Welcome to Your Recipe Assistant</h1>
+        <h1 className="text-gray-900 mb-6 text-3xl font-bold">Welcome to Your Recipe Assistant</h1>
         
         {!isStructuredMode ? (
           <Button
             onClick={handleWhatCanIMake}
             size="lg"
-            className="px-8 py-6 text-lg"
+            className="px-8 py-6 text-lg bg-gray-900 hover:bg-gray-800 text-white"
           >
             What can I make now?
           </Button>
         ) : (
           <div className="max-w-3xl mx-auto">
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-gray-900">Your Meal Plan for the Week</h2>
+              <h2 className="text-gray-900 text-xl font-semibold">Your Meal Plan for the Week</h2>
               <Button onClick={() => setShowMealPlanDialog(true)}>
                 Generate New Meal Plan
               </Button>
@@ -84,7 +84,7 @@ export function Home({ pantryItems, isStructuredMode, mealPlan, onNavigateToPant
                 <Card key={meal.id}>
                   <CardContent className="flex justify-between items-center p-4">
                     <div className="flex items-center space-x-4">
-                      <span className="text-gray-900 min-w-[100px]">{meal.day}</span>
+                      <span className="text-gray-900 min-w-[100px] font-medium">{meal.day}</span>
                       <span className="text-gray-700">{meal.recipe.name}</span>
                     </div>
                     <Button
@@ -105,20 +105,29 @@ export function Home({ pantryItems, isStructuredMode, mealPlan, onNavigateToPant
       {/* Pantry Preview Section */}
       <div className="mt-16">
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-gray-900">Current Pantry</h2>
+          <h2 className="text-gray-900 text-xl font-semibold">Current Pantry</h2>
           <Button variant="outline" onClick={onNavigateToPantry}>
             Show More
           </Button>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-          {pantryItems.slice(0, 8).map((item) => (
-            <Card key={item.id}>
-              <CardContent className="p-4">
-                <p className="text-gray-900">{item.name}</p>
-                <p className="text-gray-500 text-sm">{item.quantity}</p>
-              </CardContent>
-            </Card>
+          {pantryItems
+            // FIX: Filter out empty "ghost" items before displaying
+            .filter(item => item.name && item.name.trim() !== '')
+            .slice(0, 8)
+            .map((item) => (
+              <Card key={item.id} className="hover:shadow-md transition-shadow">
+                <CardContent className="p-4">
+                  <p className="text-gray-900 font-medium">{item.name}</p>
+                  <p className="text-gray-500 text-sm bg-gray-100 inline-block px-2 py-0.5 rounded mt-1">{item.quantity}</p>
+                </CardContent>
+              </Card>
           ))}
+          {pantryItems.filter(item => item.name && item.name.trim() !== '').length === 0 && (
+             <div className="col-span-full text-center py-8 bg-gray-50 border border-dashed rounded-lg">
+                <p className="text-gray-500">Your pantry is empty.</p>
+             </div>
+          )}
         </div>
       </div>
 
@@ -135,13 +144,11 @@ export function Home({ pantryItems, isStructuredMode, mealPlan, onNavigateToPant
             <div>
               <Label htmlFor="cost-filter">Cost</Label>
               <Select
-                id="cost-filter"
                 value={costFilter}
                 onValueChange={setCostFilter}
-                className="mt-2"
               >
-                <SelectTrigger>
-                  <SelectValue>{costFilter === 'all' ? 'Any' : costFilter}</SelectValue>
+                <SelectTrigger id="cost-filter" className="mt-2">
+                  <SelectValue placeholder="Any cost" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Any</SelectItem>
@@ -154,13 +161,11 @@ export function Home({ pantryItems, isStructuredMode, mealPlan, onNavigateToPant
             <div>
               <Label htmlFor="time-filter">Time</Label>
               <Select
-                id="time-filter"
                 value={timeFilter}
                 onValueChange={setTimeFilter}
-                className="mt-2"
               >
-                <SelectTrigger>
-                  <SelectValue>{timeFilter === 'all' ? 'Any' : timeFilter}</SelectValue>
+                <SelectTrigger id="time-filter" className="mt-2">
+                  <SelectValue placeholder="Any time" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Any</SelectItem>
@@ -173,13 +178,11 @@ export function Home({ pantryItems, isStructuredMode, mealPlan, onNavigateToPant
             <div>
               <Label htmlFor="skill-filter">Skill Level</Label>
               <Select
-                id="skill-filter"
                 value={skillFilter}
                 onValueChange={setSkillFilter}
-                className="mt-2"
               >
-                <SelectTrigger>
-                  <SelectValue>{skillFilter === 'all' ? 'Any' : skillFilter}</SelectValue>
+                <SelectTrigger id="skill-filter" className="mt-2">
+                  <SelectValue placeholder="Any level" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Any</SelectItem>
@@ -199,11 +202,11 @@ export function Home({ pantryItems, isStructuredMode, mealPlan, onNavigateToPant
                 placeholder="E.g., Italian cuisine, comfort food, vegan options, etc."
               />
             </div>
-            <div className="flex justify-end space-x-2">
+            <div className="flex justify-end space-x-2 pt-4">
               <Button variant="outline" onClick={() => setShowFilterDialog(false)}>
                 Cancel
               </Button>
-              <Button onClick={handleFindRecipes}>
+              <Button onClick={handleFindRecipes} className="bg-orange-600 hover:bg-orange-700 text-white">
                 Find Recipes
               </Button>
             </div>
@@ -223,7 +226,7 @@ export function Home({ pantryItems, isStructuredMode, mealPlan, onNavigateToPant
           {selectedMeal && (
             <div className="space-y-4 mt-4">
               <div>
-                <h3 className="text-gray-900 mb-2">Ingredients</h3>
+                <h3 className="text-gray-900 mb-2 font-semibold">Ingredients</h3>
                 <ul className="list-disc list-inside space-y-1">
                   {selectedMeal.recipe.ingredients.map((ingredient, index) => (
                     <li key={index} className="text-gray-700">{ingredient}</li>
@@ -231,10 +234,10 @@ export function Home({ pantryItems, isStructuredMode, mealPlan, onNavigateToPant
                 </ul>
               </div>
               <div>
-                <h3 className="text-gray-900 mb-2">Instructions</h3>
-                <p className="text-gray-700">{selectedMeal.recipe.instructions}</p>
+                <h3 className="text-gray-900 mb-2 font-semibold">Instructions</h3>
+                <p className="text-gray-700 whitespace-pre-wrap">{selectedMeal.recipe.instructions}</p>
               </div>
-              <div className="flex space-x-4 text-sm">
+              <div className="flex space-x-4 text-sm border-t pt-4">
                 <span className="text-gray-600">Time: {selectedMeal.recipe.time} min</span>
                 <span className="text-gray-600">Skill: {selectedMeal.recipe.skillLevel}</span>
                 <span className="text-gray-600">Cost: {selectedMeal.recipe.cost}</span>
@@ -257,13 +260,11 @@ export function Home({ pantryItems, isStructuredMode, mealPlan, onNavigateToPant
             <div>
               <Label htmlFor="budget-filter">Budget</Label>
               <Select
-                id="budget-filter"
                 value={mealPlanBudget}
                 onValueChange={setMealPlanBudget}
-                className="mt-2"
               >
-                <SelectTrigger>
-                  <SelectValue>{mealPlanBudget === 'all' ? 'Any' : mealPlanBudget}</SelectValue>
+                <SelectTrigger id="budget-filter" className="mt-2">
+                  <SelectValue placeholder="Any budget" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Any</SelectItem>
@@ -276,13 +277,11 @@ export function Home({ pantryItems, isStructuredMode, mealPlan, onNavigateToPant
             <div>
               <Label htmlFor="time-to-cook-filter">Time to Cook</Label>
               <Select
-                id="time-to-cook-filter"
                 value={mealPlanTime}
                 onValueChange={setMealPlanTime}
-                className="mt-2"
               >
-                <SelectTrigger>
-                  <SelectValue>{mealPlanTime === 'all' ? 'Any' : mealPlanTime}</SelectValue>
+                <SelectTrigger id="time-to-cook-filter" className="mt-2">
+                  <SelectValue placeholder="Any time" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Any</SelectItem>
@@ -295,13 +294,11 @@ export function Home({ pantryItems, isStructuredMode, mealPlan, onNavigateToPant
             <div>
               <Label htmlFor="skill-level-filter">Skill Level</Label>
               <Select
-                id="skill-level-filter"
                 value={mealPlanSkill}
                 onValueChange={setMealPlanSkill}
-                className="mt-2"
               >
-                <SelectTrigger>
-                  <SelectValue>{mealPlanSkill === 'all' ? 'Any' : mealPlanSkill}</SelectValue>
+                <SelectTrigger id="skill-level-filter" className="mt-2">
+                  <SelectValue placeholder="Any level" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Any</SelectItem>
@@ -311,11 +308,11 @@ export function Home({ pantryItems, isStructuredMode, mealPlan, onNavigateToPant
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex justify-end space-x-2">
+            <div className="flex justify-end space-x-2 pt-4">
               <Button variant="outline" onClick={() => setShowMealPlanDialog(false)}>
                 Cancel
               </Button>
-              <Button onClick={handleGenerateMealPlan}>
+              <Button onClick={handleGenerateMealPlan} className="bg-orange-600 hover:bg-orange-700 text-white">
                 Generate Plan
               </Button>
             </div>
