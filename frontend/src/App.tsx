@@ -175,7 +175,7 @@ export default function App() {
             <div className="flex items-center space-x-8">
               <div className="flex items-center space-x-2 mr-4">
                 <ChefHat className="size-6 text-orange-600" />
-                <span className="text-gray-900">RecipeAI</span>
+                <span className="text-gray-900">MealMind</span>
               </div>
               <button
                 onClick={() => setCurrentPage('home')}
