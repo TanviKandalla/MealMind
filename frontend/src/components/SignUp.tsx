@@ -5,6 +5,10 @@ import { Label } from './ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { ChefHat } from 'lucide-react';
 
+import { auth, db } from '../firebase';
+import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import { doc, setDoc } from 'firebase/firestore';
+
 type SignUpProps = {
   onSignUp: () => void;
   onBackToLanding: () => void;
@@ -15,11 +19,35 @@ export function SignUp({ onSignUp, onBackToLanding, onSwitchToLogin }: SignUpPro
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // In a real app, this would create a new user account
-    onSignUp();
+    setLoading(true);
+
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+
+      // Update Firebase Auth profile name
+      await updateProfile(user, {
+        displayName: name,
+      });
+
+      // Store extra user data in Firestore
+      await setDoc(doc(db, "users", user.uid), {
+        name,
+        email,
+        createdAt: new Date(),
+      });
+
+      alert("Account created! Welcome 🎉");
+      onSignUp(); // navigate forward
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -76,8 +104,8 @@ export function SignUp({ onSignUp, onBackToLanding, onSwitchToLogin }: SignUpPro
                   className="mt-2"
                 />
               </div>
-              <Button type="submit" className="w-full">
-                Sign Up
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading ? "Creating account..." : "Sign Up"}
               </Button>
             </form>
 
@@ -104,3 +132,4 @@ export function SignUp({ onSignUp, onBackToLanding, onSwitchToLogin }: SignUpPro
     </div>
   );
 }
+

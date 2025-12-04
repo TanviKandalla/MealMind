@@ -5,6 +5,9 @@ import { Label } from './ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { ChefHat } from 'lucide-react';
 
+import { auth } from '../firebase';
+import { signInWithEmailAndPassword } from 'firebase/auth';
+
 type LoginProps = {
   onLogin: () => void;
   onBackToLanding: () => void;
@@ -14,11 +17,22 @@ type LoginProps = {
 export function Login({ onLogin, onBackToLanding, onSwitchToSignUp }: LoginProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // In a real app, this would authenticate the user
-    onLogin();
+    setLoading(true);
+
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+      console.log("Logged in:", auth.currentUser);
+      alert("Signed in successfully!");
+      onLogin(); // move user to next screen
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -63,8 +77,8 @@ export function Login({ onLogin, onBackToLanding, onSwitchToSignUp }: LoginProps
                   className="mt-2"
                 />
               </div>
-              <Button type="submit" className="w-full">
-                Log In
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading ? "Logging in..." : "Log In"}
               </Button>
             </form>
 
