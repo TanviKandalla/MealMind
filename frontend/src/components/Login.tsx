@@ -105,3 +105,4 @@ export function Login({ onLogin, onBackToLanding, onSwitchToSignUp }: LoginProps
     </div>
   );
 }
+
