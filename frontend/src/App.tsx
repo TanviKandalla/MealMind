@@ -1,4 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { db } from './firebase'; 
+import { collection, getDocs } from 'firebase/firestore';
 import { LandingPage } from './components/LandingPage';
 import { Login } from './components/Login';
 import { SignUp } from './components/SignUp';
@@ -107,6 +109,27 @@ export default function App() {
     { id: '6', day: 'Saturday', recipe: recipes[0] },
     { id: '7', day: 'Sunday', recipe: recipes[1] },
   ]);
+
+  useEffect(() => {
+    const fetchMealPlans = async () => {
+      try {
+        console.log("Attempting to fetch from Firebase..."); // Added for visibility
+        const querySnapshot = await getDocs(collection(db, "MealPlans"));
+        
+        if (querySnapshot.empty) {
+            console.log("Connected, but no documents found in 'MealPlans'.");
+        } else {
+            querySnapshot.forEach((doc) => {
+              console.log("Firebase Data Found:", doc.id, " => ", doc.data());
+            });
+        }
+      } catch (error) {
+        console.error("Error connecting to Firebase:", error);
+      }
+    };
+
+    fetchMealPlans();
+  }, []);
 
   const addPantryItem = (item: Omit<PantryItem, 'id'>) => {
     const newItem = {
