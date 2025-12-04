@@ -4,15 +4,16 @@ import { Card, CardContent } from './ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
-import { Plus } from 'lucide-react';
-import type { PantryItem } from '../App';
+import { Plus, ShoppingCart } from 'lucide-react';
+import type { PantryItem, ShoppingListItem } from '../App';
 
 type SmartPantryProps = {
   pantryItems: PantryItem[];
   onAddItem: (item: Omit<PantryItem, 'id'>) => void;
+  shoppingListItems: ShoppingListItem[];
 };
 
-export function SmartPantry({ pantryItems, onAddItem }: SmartPantryProps) {
+export function SmartPantry({ pantryItems, onAddItem, shoppingListItems }: SmartPantryProps) {
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [newItemName, setNewItemName] = useState('');
   const [newItemQuantity, setNewItemQuantity] = useState('');
@@ -39,6 +40,37 @@ export function SmartPantry({ pantryItems, onAddItem }: SmartPantryProps) {
         </Button>
       </div>
 
+
+      {/* --- Shopping List Section --- */}
+      <div className="mb-12">
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-gray-900 text-2xl font-bold flex items-center">
+            <ShoppingCart className="h-6 w-6 mr-3 text-orange-600" />
+            Shopping List
+          </h2>
+          {/* You could add a button here to add items directly to the Shopping List */}
+        </div>
+
+        {shoppingListItems && shoppingListItems.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              {shoppingListItems.filter(item => item.name && item.name.trim() !== '') .map((item) => (
+                  <Card key={item.id} className="bg-orange-50 border-orange-200 hover:shadow-md transition-shadow">
+                    <CardContent className="p-4">
+                      <h3 className="text-gray-900 font-medium">{item.name}</h3>
+                      {/* Optionally display quantity if the ShoppingListItem type is extended */}
+                    </CardContent>
+                  </Card>
+              ))}
+            </div>
+        ) : (
+            <div className="text-center py-8 bg-white rounded-lg border border-dashed border-gray-300">
+              <p className="text-gray-500">Your shopping list is empty!</p>
+            </div>
+        )}
+      </div>
+
+      <hr className="my-10" />
+
       {/* Pantry Items List */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
         {pantryItems
@@ -63,6 +95,8 @@ export function SmartPantry({ pantryItems, onAddItem }: SmartPantryProps) {
           </Button>
         </div>
       )}
+
+
 
       {/* Add Item Dialog */}
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>

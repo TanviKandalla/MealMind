@@ -20,6 +20,11 @@ export type PantryItem = {
   quantity: string;
 };
 
+export type ShoppingListItem = {
+  id: string;
+  name: string;
+};
+
 export type Recipe = {
   id: string;
   name: string;
@@ -46,6 +51,8 @@ export default function App() {
   const [pantryItems, setPantryItems] = useState<PantryItem[]>([]);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [mealPlan] = useState<MealPlan[]>([]); // Placeholder for now
+
+  const [shoppingListItems, setShoppingListItems] = useState<ShoppingListItem[]>([]);
 
   // ---------------------------------------------------------
   // 1. FETCH DATA (RECIPES & PANTRY) ON LOAD
@@ -102,6 +109,13 @@ export default function App() {
           ...doc.data()
         })) as PantryItem[];
         setPantryItems(pantryList);
+
+        const shoppingListSnapshot = await getDocs(collection(db, "ShoppingList"));
+        const shoppingList = shoppingListSnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data() // Assuming only 'name' is stored
+        })) as ShoppingListItem[];
+        setShoppingListItems(shoppingList);
 
       } catch (error) {
         console.error("Error fetching data:", error);
@@ -236,7 +250,7 @@ export default function App() {
         {currentPage === 'discovery' && <RecipeDiscovery recipes={recipes} onMakeRecipe={handleMakeRecipe} />}
         
         {/* Pass props to SmartPantry: List of pantry items AND the Add Handler */}
-        {currentPage === 'pantry' && <SmartPantry pantryItems={pantryItems} onAddItem={addPantryItem} />}
+        {currentPage === 'pantry' && < SmartPantry pantryItems={pantryItems} onAddItem={addPantryItem} shoppingListItems={shoppingListItems}/>}
         
         {currentPage === 'generator' && <RecipeGenerator pantryItems={pantryItems} />}
       </main>
