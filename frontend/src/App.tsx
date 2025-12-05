@@ -45,6 +45,7 @@ export type MealPlan = {
 
 export default function App() {
   const [currentPage, setCurrentPage] = useState<'landing' | 'login' | 'signup' | 'profile' | 'home' | 'discovery' | 'pantry' | 'generator'>('landing');
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isStructuredMode, setIsStructuredMode] = useState(false);
   const [userProfile, setUserProfile] = useState<UserProfile>({});
   
@@ -66,12 +67,11 @@ export default function App() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
-      setAuthLoading(false);
+      setAuthLoading(false); // Authentication check is complete
 
       if (currentUser) {
-        if (currentPage === 'landing' || currentPage === 'login' || currentPage === 'signup') {
-            setCurrentPage('home');
-        }
+        // REMOVE the automatic redirection: setCurrentPage('home');
+        // The user object is now set, but the page remains 'landing' (unless changed elsewhere)
       } else {
         setPantryItems([]);
         setCurrentPage('landing');
@@ -79,7 +79,7 @@ export default function App() {
     });
 
     return () => unsubscribe();
-  }, [currentPage]);
+  }, []);
 
   // 2. FETCH DATA
   useEffect(() => {
@@ -231,25 +231,20 @@ export default function App() {
     }
   };
 
-  const handleSignOut = async () => {
-    try {
-        await signOut(auth);
-    } catch (error) {
-        console.error("Error signing out:", error);
-    }
-  };
-
   const handleSaveProfile = (profile: UserProfile) => { setUserProfile(profile); setCurrentPage('home'); };
 
   if (authLoading) {
       return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
   }
 
-  if (!user) {
+  const handleLogin = () => { setIsAuthenticated(true); setCurrentPage('home'); };
+  const handleSignUp = () => { setIsAuthenticated(true); setCurrentPage('home'); };
+  const handleSignOut = () => { setIsAuthenticated(false); setCurrentPage('landing'); };
+
+  if (!isAuthenticated) {
     if (currentPage === 'landing') return <LandingPage onGetStarted={() => setCurrentPage('signup')} onLogin={() => setCurrentPage('login')} />;
-    if (currentPage === 'login') return <Login onLogin={() => {}} onBackToLanding={() => setCurrentPage('landing')} onSwitchToSignUp={() => setCurrentPage('signup')} />;
-    if (currentPage === 'signup') return <SignUp onSignUp={() => {}} onBackToLanding={() => setCurrentPage('landing')} onSwitchToLogin={() => setCurrentPage('login')} />;
-    return <LandingPage onGetStarted={() => setCurrentPage('signup')} onLogin={() => setCurrentPage('login')} />;
+    if (currentPage === 'login') return <Login onLogin={handleLogin} onBackToLanding={() => setCurrentPage('landing')} onSwitchToSignUp={() => setCurrentPage('signup')} />;
+    if (currentPage === 'signup') return <SignUp onSignUp={handleSignUp} onBackToLanding={() => setCurrentPage('landing')} onSwitchToLogin={() => setCurrentPage('login')} />;
   }
 
   return (
