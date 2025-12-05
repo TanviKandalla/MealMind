@@ -25,6 +25,7 @@ export type PantryItem = {
 export type ShoppingListItem = {
   id: string;
   name: string;
+  quantity: string;
 };
 
 export type Recipe = {
@@ -134,16 +135,12 @@ export default function App() {
             if (userDocSnap.exists()) {
                 const userData = userDocSnap.data();
                 setPantryItems(userData.pantryItems || []);
+                setShoppingListItems(userData.shoppingListItems || [])
             } else {
                 setPantryItems([]);
+                setShoppingListItems([])
             }
         }
-        const shoppingListSnapshot = await getDocs(collection(db, "ShoppingList"));
-        const shoppingList = shoppingListSnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data() // Assuming only 'name' is stored
-        })) as ShoppingListItem[];
-        setShoppingListItems(shoppingList);
 
       } catch (error) {
         console.error("Error fetching data:", error);
@@ -154,6 +151,29 @@ export default function App() {
         fetchData();
     }
   }, [user, authLoading]);
+
+  const addShoppingListItem = async (item: Omit<ShoppingListItem, 'id'>) => {
+    if (!user) return;
+    try {
+      const newItem = { ...item, id: Date.now().toString() };
+      const updatedList = [...shoppingListItems, newItem];
+      const userDocRef = doc(db, "users", user.uid);
+
+      await updateDoc(userDocRef, {
+        shoppingListItems: updatedList
+      });
+
+      setShoppingListItems(updatedList);
+    } catch (error) {
+      console.error("Error adding pantry item:", error);
+      try {
+        const userDocRef = doc(db, "users", user!.uid);
+        await setDoc(userDocRef, { shoppingListItems: [...pantryItems, { ...item, id: Date.now().toString() }] }, { merge: true });
+      } catch (e) {
+        alert("Failed to save item. Please try again.");
+      }
+    }
+  };
 
   // 3. ADD ITEM
   const addPantryItem = async (item: Omit<PantryItem, 'id'>) => {
@@ -288,7 +308,7 @@ export default function App() {
         {currentPage === 'discovery' && <RecipeDiscovery recipes={recipes} onMakeRecipe={handleMakeRecipe} />}
         
         {/* Pass props to SmartPantry: List of pantry items AND the Add Handler */}
-        {currentPage === 'pantry' && < SmartPantry pantryItems={pantryItems} onAddItem={addPantryItem} shoppingListItems={shoppingListItems}/>}
+        {currentPage === 'pantry' && < SmartPantry pantryItems={pantryItems} onAddItem={addPantryItem} shoppingListItems={shoppingListItems} onAddShoppingItem={addShoppingListItem}/>}
         
         {currentPage === 'generator' && <RecipeGenerator pantryItems={pantryItems} />}
       </main>
