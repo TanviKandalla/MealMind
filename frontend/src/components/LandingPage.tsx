@@ -3,12 +3,13 @@ import { Card, CardContent } from './ui/card';
 import { ChefHat, Sparkles, Clock, DollarSign } from 'lucide-react';
 
 type LandingPageProps = {
-  onGetStarted: () => void;
-  onLogin: () => void;
+  onGetStarted: () => void; // Function to navigate to the main app interface (e.g., set logged in state)
+  onLogin: () => void;      // Function to open the login form or trigger login flow
 };
 
 export function LandingPage({ onGetStarted, onLogin }: LandingPageProps) {
   return (
+    // Main container with a subtle vertical gradient background
     <div className="min-h-screen bg-gradient-to-b from-orange-50 to-white">
       {/* Navigation */}
       <nav className="px-4 sm:px-6 lg:px-8 py-6">
@@ -17,13 +18,14 @@ export function LandingPage({ onGetStarted, onLogin }: LandingPageProps) {
             <ChefHat className="size-8 text-orange-600" />
             <span className="text-gray-900 text-xl">MealMind</span>
           </div>
+          {/* Login button in the navigation bar */}
           <Button variant="ghost" onClick={onLogin}>
             Log In
           </Button>
         </div>
       </nav>
 
-      {/* Hero Section */}
+      {/* Hero Section: Primary Call to Action */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 text-center">
         <h1 className="text-gray-900 mb-6">
           Stop asking "What's for dinner?"
@@ -32,18 +34,21 @@ export function LandingPage({ onGetStarted, onLogin }: LandingPageProps) {
           Your pantry knows more than you think. Turn random ingredients into restaurant-worthy meals.
         </p>
         <div className="flex justify-center space-x-4">
+          {/* Main action button for new users */}
           <Button size="lg" onClick={onGetStarted} className="px-8 py-6 text-lg">
             Get Started Free
           </Button>
+          {/* Secondary action button for returning users */}
           <Button size="lg" variant="outline" onClick={onLogin} className="px-8 py-6 text-lg">
             Log In
           </Button>
         </div>
       </div>
 
-      {/* Features Grid */}
+      {/* Features Grid: Highlighting key benefits */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
         <div className="grid md:grid-cols-3 gap-8">
+          {/* Feature Card 1: AI & Waste Reduction */}
           <Card className="border-2 hover:border-orange-200 transition-colors">
             <CardContent className="p-8 text-center">
               <div className="inline-flex items-center justify-center size-16 bg-orange-100 rounded-full mb-4">
@@ -56,6 +61,7 @@ export function LandingPage({ onGetStarted, onLogin }: LandingPageProps) {
             </CardContent>
           </Card>
 
+          {/* Feature Card 2: Meal Planning */}
           <Card className="border-2 hover:border-orange-200 transition-colors">
             <CardContent className="p-8 text-center">
               <div className="inline-flex items-center justify-center size-16 bg-orange-100 rounded-full mb-4">
@@ -68,6 +74,7 @@ export function LandingPage({ onGetStarted, onLogin }: LandingPageProps) {
             </CardContent>
           </Card>
 
+          {/* Feature Card 3: Filtering and Budget */}
           <Card className="border-2 hover:border-orange-200 transition-colors">
             <CardContent className="p-8 text-center">
               <div className="inline-flex items-center justify-center size-16 bg-orange-100 rounded-full mb-4">
@@ -82,11 +89,12 @@ export function LandingPage({ onGetStarted, onLogin }: LandingPageProps) {
         </div>
       </div>
 
-      {/* How It Works */}
+      {/* How It Works Section: Step-by-step process explanation */}
       <div className="bg-gray-50 py-20">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <h2 className="text-gray-900 text-center mb-12">How it works</h2>
           <div className="space-y-8">
+            {/* Step 1 */}
             <div className="flex items-start space-x-4">
               <div className="flex-shrink-0 size-10 bg-orange-600 text-white rounded-full flex items-center justify-center">
                 1
@@ -98,6 +106,7 @@ export function LandingPage({ onGetStarted, onLogin }: LandingPageProps) {
                 </p>
               </div>
             </div>
+            {/* Step 2 */}
             <div className="flex items-start space-x-4">
               <div className="flex-shrink-0 size-10 bg-orange-600 text-white rounded-full flex items-center justify-center">
                 2
@@ -109,6 +118,7 @@ export function LandingPage({ onGetStarted, onLogin }: LandingPageProps) {
                 </p>
               </div>
             </div>
+            {/* Step 3 */}
             <div className="flex items-start space-x-4">
               <div className="flex-shrink-0 size-10 bg-orange-600 text-white rounded-full flex items-center justify-center">
                 3
@@ -124,7 +134,7 @@ export function LandingPage({ onGetStarted, onLogin }: LandingPageProps) {
         </div>
       </div>
 
-      {/* CTA Section */}
+      {/* CTA Section: Final prompt to sign up/start */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 text-center">
         <h2 className="text-gray-900 mb-6">Ready to cook smarter?</h2>
         <p className="text-xl text-gray-600 mb-8">

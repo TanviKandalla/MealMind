@@ -44,39 +44,31 @@ export type MealPlan = {
   recipe: Recipe;
 };
 
-export type RecipeDocument = { // <-- ADD export
+export type RecipeDocument = { // Type for the raw document data in Firestore 'Recipes' collection
   name: string;
   costOfIngredients: 'Low' | 'Medium' | 'High';
   skillLevel: 'Beginner' | 'Intermediate' | 'Advanced';
 };
 
 /**
- * Queries the Firestore database based on user-selected filters
+ * Queries the Firestore database 'Recipes' collection based on user-selected filters
  * and returns a list of matching recipe names.
- * * @param filters Object containing cost, time, and skill level strings.
- * @returns A Promise that resolves to an array of recipe names (string[]).
  */
 export async function fetchRecipesByFilters(filters: { costOfIngredients: string; timeTakenToCook: string; skillLevel: string; }): Promise<string[]> {
-  const { costOfIngredients, timeTakenToCook, skillLevel } = filters;
+  const { costOfIngredients, skillLevel } = filters;
   const recipesCollection = collection(db, 'Recipes');
-
-  // Start with an empty array for the recipe names
   const recipeNames: string[] = [];
   const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
   // 1. Construct the Base Query
   let q = query(recipesCollection);
 
-  // 2. Add Filters Conditionally
-  // NOTE: Firestore requires separate indexes for each 'where' clause.
-
+  // 2. Add Filters Conditionally (Firestore requires exact matches)
   if (costOfIngredients !== 'all') {
-    // Check if the recipe's cost field matches the filter
     q = query(q, where('costOfIngredients', '==', capitalize(costOfIngredients)));
   }
 
   if (skillLevel !== 'all') {
-    // Check if the recipe's skill field matches the filter
     q = query(q, where('skillLevel', '==', capitalize(skillLevel)));
   }
 
@@ -85,77 +77,79 @@ export async function fetchRecipesByFilters(filters: { costOfIngredients: string
     const querySnapshot: QuerySnapshot<RecipeDocument> = await getDocs(q) as QuerySnapshot<RecipeDocument>;
 
     querySnapshot.forEach((doc) => {
-      // Get the name field from each matching document
       recipeNames.push(doc.data().name);
     });
 
     return recipeNames;
   } catch (error) {
     console.error("Error executing Firebase query:", error);
-    // Important: Rethrow or return an empty array if the database call fails
     return [];
   }
 }
 
 export default function App() {
+  // UI and Navigation State
   const [currentPage, setCurrentPage] = useState<'landing' | 'login' | 'signup' | 'profile' | 'home' | 'discovery' | 'pantry' | 'generator'>('landing');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isStructuredMode, setIsStructuredMode] = useState(false);
-  const [userProfile, setUserProfile] = useState<UserProfile>({});
   
-  // AUTH STATE
-  const [user, setUser] = useState<User | null>(null);
-  const [authLoading, setAuthLoading] = useState(true);
+  // User & Auth State
+  const [user, setUser] = useState<User | null>(null); // Firebase User object
+  const [authLoading, setAuthLoading] = useState(true); // Flag to prevent UI render before auth check
+  const [userProfile, setUserProfile] = useState<UserProfile>({});
 
-  // DATA STATE
+  // Application Data State
   const [pantryItems, setPantryItems] = useState<PantryItem[]>([]);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
-  const [mealPlan] = useState<MealPlan[]>([]);
-
+  const [mealPlan] = useState<MealPlan[]>([]); // Current implementation only uses this in the Home component
   const [shoppingListItems, setShoppingListItems] = useState<ShoppingListItem[]>([]);
 
   // ---------------------------------------------------------
-  // 1. FETCH DATA (RECIPES & PANTRY) ON LOAD
+  // 1. AUTH LISTENER (Manages user session)
   // ---------------------------------------------------------
-  // 1. AUTH LISTENER
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
-      setAuthLoading(false); // Authentication check is complete
+      setAuthLoading(false); // Auth check complete
 
       if (currentUser) {
-        // REMOVE the automatic redirection: setCurrentPage('home');
-        // The user object is now set, but the page remains 'landing' (unless changed elsewhere)
+        setIsAuthenticated(true);
+        // Automatically redirect to home if a user is found, unless on a login/signup page
+        if (currentPage === 'landing' || currentPage === 'login' || currentPage === 'signup') {
+            setCurrentPage('home');
+        }
       } else {
+        setIsAuthenticated(false);
         setPantryItems([]);
+        setShoppingListItems([]);
         setCurrentPage('landing');
       }
     });
 
-    return () => unsubscribe();
-  }, []);
+    return () => unsubscribe(); // Cleanup listener on unmount
+  }, []); // Run once on component mount
 
-  // 2. FETCH DATA
+  // ---------------------------------------------------------
+  // 2. DATA FETCHING (Runs after auth check completes and user state is set)
+  // ---------------------------------------------------------
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // A. Fetch & Clean Recipes
+        // A. Fetch & Clean Recipes (Static application data)
         const recipeSnapshot = await getDocs(collection(db, "Recipes"));
         const recipesList = recipeSnapshot.docs.map(doc => {
           const data = doc.data();
           
-          // Clean Ingredients: Handle both strings and objects from DB
+          // Data cleaning logic for inconsistent DB fields
           let cleanIngredients: string[] = [];
           if (Array.isArray(data.ingredients)) {
             cleanIngredients = data.ingredients.map((ing: any) => {
               if (typeof ing === 'string') return ing; 
-              // Combine parts: "2" + "cups" + "Rice"
               const parts = [ing.quantity, ing.unit, ing.name].filter(Boolean);
               return parts.join(' '); 
             });
           }
 
-          // Clean Instructions: Handle both string and array of steps
           let cleanInstructions = "No instructions provided.";
           if (data.instructions) {
             cleanInstructions = data.instructions;
@@ -163,24 +157,24 @@ export default function App() {
             cleanInstructions = data.steps.join(' ');
           }
 
-          // Smart Defaults for missing data
+          // Smart Defaults for missing metadata
           const derivedTime = Number(data.time) || Math.floor(Math.random() * (90 - 15 + 1)) + 15;
           const costs = ['low', 'medium', 'high'];
-          const derivedCost = data.cost || costs[Math.floor(Math.random() * costs.length)];
-          const rawSkill = data.skillLevel || "beginner";
+          const derivedCost = (data.cost || data.costOfIngredients || costs[Math.floor(Math.random() * costs.length)]).toLowerCase();
 
           return {
             id: doc.id,
             name: data.recipeName || data.name || "Untitled Recipe",
-            cost: derivedCost,
+            cost: derivedCost as 'low' | 'medium' | 'high',
             time: derivedTime,
-            skillLevel: (data.skillLevel || "beginner").toLowerCase(),
+            skillLevel: (data.skillLevel || "beginner").toLowerCase() as 'beginner' | 'intermediate' | 'advanced',
             ingredients: cleanIngredients,
             instructions: cleanInstructions
           };
         }) as Recipe[];
         setRecipes(recipesList);
 
+        // B. Fetch User-Specific Data (Pantry and Shopping List)
         if (user) {
             const userDocRef = doc(db, "users", user.uid);
             const userDocSnap = await getDoc(userDocRef);
@@ -189,6 +183,7 @@ export default function App() {
                 const userData = userDocSnap.data();
                 setPantryItems(userData.pantryItems || []);
                 setShoppingListItems(userData.shoppingListItems || [])
+                // NOTE: UserProfile data could also be loaded here
             } else {
                 setPantryItems([]);
                 setShoppingListItems([])
@@ -200,11 +195,19 @@ export default function App() {
       }
     };
 
-    if (!authLoading) {
+    if (user && !authLoading) { // Only fetch user data if authenticated and not loading
         fetchData();
     }
-  }, [user, authLoading]);
+  }, [user, authLoading]); // Reruns when user changes or auth state stabilizes
 
+
+  // ---------------------------------------------------------
+  // 3. HANDLERS FOR DATA MUTATION (CRUD)
+  // ---------------------------------------------------------
+  
+  /**
+   * Adds an item to the shopping list and saves to Firestore.
+   */
   const addShoppingListItem = async (item: Omit<ShoppingListItem, 'id'>) => {
     if (!user) return;
     try {
@@ -212,23 +215,24 @@ export default function App() {
       const updatedList = [...shoppingListItems, newItem];
       const userDocRef = doc(db, "users", user.uid);
 
-      await updateDoc(userDocRef, {
-        shoppingListItems: updatedList
-      });
+      await updateDoc(userDocRef, { shoppingListItems: updatedList });
 
       setShoppingListItems(updatedList);
     } catch (error) {
-      console.error("Error adding pantry item:", error);
+      console.error("Error adding shopping item:", error);
+      // Fallback for document creation if it didn't exist
       try {
         const userDocRef = doc(db, "users", user!.uid);
-        await setDoc(userDocRef, { shoppingListItems: [...pantryItems, { ...item, id: Date.now().toString() }] }, { merge: true });
+        await setDoc(userDocRef, { shoppingListItems: [...shoppingListItems, { ...item, id: Date.now().toString() }] }, { merge: true });
       } catch (e) {
         alert("Failed to save item. Please try again.");
       }
     }
   };
 
-  // 3. ADD ITEM
+  /**
+   * Adds an item to the pantry and saves to Firestore.
+   */
   const addPantryItem = async (item: Omit<PantryItem, 'id'>) => {
     if (!user) return;
 
@@ -237,13 +241,12 @@ export default function App() {
       const updatedList = [...pantryItems, newItem];
       const userDocRef = doc(db, "users", user.uid);
       
-      await updateDoc(userDocRef, {
-        pantryItems: updatedList
-      });
+      await updateDoc(userDocRef, { pantryItems: updatedList });
 
       setPantryItems(updatedList);
     } catch (error) {
       console.error("Error adding pantry item:", error);
+      // Fallback for document creation if it didn't exist
       try {
           const userDocRef = doc(db, "users", user!.uid);
           await setDoc(userDocRef, { pantryItems: [...pantryItems, { ...item, id: Date.now().toString() }] }, { merge: true });
@@ -253,17 +256,23 @@ export default function App() {
     }
   };
 
-  // 4. COOK & DEDUCT LOGIC
+  /**
+   * Simulates cooking a recipe by deducting the required quantity of matching ingredients from the pantry.
+   */
   const handleMakeRecipe = async (recipe: Recipe) => {
+    if (!user) return;
     console.log("Cooking:", recipe.name);
     let deductionCount = 0;
 
+    // Map over current pantry items to create the new state
     const updatedPantry = pantryItems.map((pantryItem) => {
+      // Simple string matching to find if the pantry item is an ingredient
       const matchedIngredientString = recipe.ingredients.find(ingStr => 
         ingStr.toLowerCase().includes(pantryItem.name.toLowerCase())
       );
 
       if (matchedIngredientString) {
+        // Attempt to extract numerical quantities from both strings
         const recipeQtyMatch = matchedIngredientString.match(/(\d+(\.\d+)?)/);
         const pantryQtyMatch = pantryItem.quantity.match(/(\d+(\.\d+)?)/);
 
@@ -274,9 +283,9 @@ export default function App() {
           let newQty = pantryQty - recipeQty;
           if (newQty < 0) newQty = 0;
 
+          // Replace the old number in the quantity string with the new number
           const newQuantityString = pantryItem.quantity.replace(pantryQtyMatch[0], newQty.toString());
           
-          // Update Firebase if changed
           if (newQuantityString !== pantryItem.quantity) {
              deductionCount++;
           }
@@ -305,40 +314,68 @@ export default function App() {
   };
 
 
+  // ---------------------------------------------------------
+  // 4. AUTH & NAVIGATION HANDLERS
+  // ---------------------------------------------------------
   const handleSaveProfile = (profile: UserProfile) => { setUserProfile(profile); setCurrentPage('home'); };
+  
+  // Set auth state and redirect to home on successful login/signup
+  const handleLogin = () => { setIsAuthenticated(true); setCurrentPage('home'); };
+  const handleSignUp = () => { setIsAuthenticated(true); setCurrentPage('home'); };
+  
+  // Clear auth state and redirect to landing page on sign out
+  const handleSignOut = async () => {
+    try {
+        await signOut(auth);
+        setIsAuthenticated(false);
+        setUser(null);
+        setCurrentPage('landing');
+        setPantryItems([]);
+        setShoppingListItems([]);
+    } catch (error) {
+        console.error("Error signing out:", error);
+    }
+  };
 
+  // ---------------------------------------------------------
+  // 5. RENDERING LOGIC
+  // ---------------------------------------------------------
+
+  // Show loading screen until Firebase auth check is complete
   if (authLoading) {
       return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
   }
 
-  const handleLogin = () => { setIsAuthenticated(true); setCurrentPage('home'); };
-  const handleSignUp = () => { setIsAuthenticated(true); setCurrentPage('home'); };
-  const handleSignOut = () => { setIsAuthenticated(false); setCurrentPage('landing'); };
-
+  // Render authentication screens if not authenticated
   if (!isAuthenticated) {
     if (currentPage === 'landing') return <LandingPage onGetStarted={() => setCurrentPage('signup')} onLogin={() => setCurrentPage('login')} />;
     if (currentPage === 'login') return <Login onLogin={handleLogin} onBackToLanding={() => setCurrentPage('landing')} onSwitchToSignUp={() => setCurrentPage('signup')} />;
     if (currentPage === 'signup') return <SignUp onSignUp={handleSignUp} onBackToLanding={() => setCurrentPage('landing')} onSwitchToLogin={() => setCurrentPage('login')} />;
   }
 
+  // Render authenticated application
   return (
     <div className="min-h-screen bg-gray-50">
+      
       {/* Navigation Bar */}
-      <nav className="bg-white border-b border-gray-200">
+      <nav className="bg-white border-b border-gray-200 sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-8">
+              {/* Branding/Logo */}
               <div className="flex items-center space-x-2 mr-4">
                 <ChefHat className="size-6 text-orange-600" />
                 <span className="text-gray-900">MealMind</span>
               </div>
-              <button onClick={() => setCurrentPage('home')} className={`inline-flex items-center px-1 pt-1 border-b-2 ${currentPage === 'home' ? 'border-orange-500 text-gray-900' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}`}>Home</button>
-              <button onClick={() => setCurrentPage('discovery')} className={`inline-flex items-center px-1 pt-1 border-b-2 ${currentPage === 'discovery' ? 'border-orange-500 text-gray-900' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}`}>Recipe Discovery</button>
-              <button onClick={() => setCurrentPage('pantry')} className={`inline-flex items-center px-1 pt-1 border-b-2 ${currentPage === 'pantry' ? 'border-orange-500 text-gray-900' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}`}>Smart Pantry</button>
-              <button onClick={() => setCurrentPage('generator')} className={`inline-flex items-center px-1 pt-1 border-b-2 ${currentPage === 'generator' ? 'border-orange-500 text-gray-900' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}`}>Recipe Generator</button>
+              {/* Main Navigation Links */}
+              <button onClick={() => setCurrentPage('home')} className={`nav-link ${currentPage === 'home' ? 'border-orange-500 text-gray-900' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}`}>Home</button>
+              <button onClick={() => setCurrentPage('discovery')} className={`nav-link ${currentPage === 'discovery' ? 'border-orange-500 text-gray-900' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}`}>Recipe Discovery</button>
+              <button onClick={() => setCurrentPage('pantry')} className={`nav-link ${currentPage === 'pantry' ? 'border-orange-500 text-gray-900' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}`}>Smart Pantry</button>
+              <button onClick={() => setCurrentPage('generator')} className={`nav-link ${currentPage === 'generator' ? 'border-orange-500 text-gray-900' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}`}>Recipe Generator</button>
             </div>
+            
             <div className="flex items-center space-x-4">
-              {/* Only show the toggle on the Home page */}
+              {/* Structured/Flexible Mode Toggle */}
               {currentPage === 'home' && (
                 <div className="flex items-center space-x-3">
                   <Label htmlFor="mode-toggle" className="text-sm text-gray-700">{isStructuredMode ? 'Structured' : 'Flexible'}</Label>
@@ -346,24 +383,27 @@ export default function App() {
                 </div>
               )}
 
-              <Button variant="ghost" size="sm" onClick={() => setCurrentPage('profile')}><UserIcon className="size-4" /></Button>
-              <Button variant="ghost" size="sm" onClick={handleSignOut}><LogOut className="size-4" /></Button>
+              {/* Profile and Logout Buttons */}
+              <Button variant="ghost" size="sm" onClick={() => setCurrentPage('profile')} title="Profile Settings"><UserIcon className="size-4" /></Button>
+              <Button variant="ghost" size="sm" onClick={handleSignOut} title="Sign Out"><LogOut className="size-4" /></Button>
             </div>
           </div>
         </div>
       </nav>
 
-      {/* Main Content Area */}
+      {/* Main Content Area: Conditional rendering based on currentPage state */}
       <main>
         {currentPage === 'profile' && <ProfileSettings profile={userProfile} onSave={handleSaveProfile} onBack={() => setCurrentPage('home')} />}
+        
         {currentPage === 'home' && <Home pantryItems={pantryItems} isStructuredMode={isStructuredMode} mealPlan={mealPlan} onNavigateToPantry={() => setCurrentPage('pantry')} fetchRecipesByFilters={fetchRecipesByFilters}/>}
         
-        {/* Pass props to RecipeDiscovery: List of recipes AND the Cook Handler */}
+        {/* Pass all recipes and the cook handler */}
         {currentPage === 'discovery' && <RecipeDiscovery recipes={recipes} onMakeRecipe={handleMakeRecipe} />}
         
-        {/* Pass props to SmartPantry: List of pantry items AND the Add Handler */}
+        {/* Pass pantry/shopping lists and their respective add handlers */}
         {currentPage === 'pantry' && < SmartPantry pantryItems={pantryItems} onAddItem={addPantryItem} shoppingListItems={shoppingListItems} onAddShoppingItem={addShoppingListItem}/>}
         
+        {/* Pass only pantry items for the AI to use */}
         {currentPage === 'generator' && <RecipeGenerator pantryItems={pantryItems} />}
       </main>
     </div>

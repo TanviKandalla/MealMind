@@ -16,12 +16,13 @@ export type UserProfile = {
 };
 
 type ProfileSettingsProps = {
-  profile: UserProfile;
-  onSave: (profile: UserProfile) => void;
-  onBack: () => void;
+  profile: UserProfile;              // Current user profile data passed from the parent component
+  onSave: (profile: UserProfile) => void; 
+  onBack: () => void;                
 };
 
 export function ProfileSettings({ profile, onSave, onBack }: ProfileSettingsProps) {
+  // Initialize local state for each profile field, defaulting to the current prop value or an empty string
   const [age, setAge] = useState(profile.age || '');
   const [gender, setGender] = useState(profile.gender || '');
   const [height, setHeight] = useState(profile.height || '');
@@ -29,6 +30,11 @@ export function ProfileSettings({ profile, onSave, onBack }: ProfileSettingsProp
   const [calorieGoal, setCalorieGoal] = useState(profile.calorieGoal || '');
   const [diet, setDiet] = useState(profile.diet || '');
 
+  /**
+   * Constructs the updated profile object and calls the onSave prop.
+   * It ensures that empty strings are converted to `undefined` before saving,
+   * keeping the data clean for optional fields.
+   */
   const handleSave = () => {
     onSave({
       age: age || undefined,
@@ -42,6 +48,7 @@ export function ProfileSettings({ profile, onSave, onBack }: ProfileSettingsProp
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      {/* Back button for easy navigation */}
       <div className="mb-8">
         <Button variant="ghost" onClick={onBack}>
           ← Back
@@ -51,6 +58,7 @@ export function ProfileSettings({ profile, onSave, onBack }: ProfileSettingsProp
       <Card>
         <CardHeader>
           <div className="flex items-center space-x-3">
+            {/* Icon for visual context */}
             <div className="inline-flex items-center justify-center size-12 bg-orange-100 rounded-full">
               <User className="size-6 text-orange-600" />
             </div>
@@ -62,12 +70,14 @@ export function ProfileSettings({ profile, onSave, onBack }: ProfileSettingsProp
             All fields are optional. Add information to help us personalize your recipe recommendations.
           </p>
 
+          {/* Grid layout for profile fields */}
           <div className="grid md:grid-cols-2 gap-6">
+            {/* Age Input */}
             <div>
               <Label htmlFor="age">Age</Label>
               <Input
                 id="age"
-                type="number"
+                type="number" // Restricts input to numeric values
                 value={age}
                 onChange={(e) => setAge(e.target.value)}
                 placeholder="Enter your age"
@@ -75,6 +85,7 @@ export function ProfileSettings({ profile, onSave, onBack }: ProfileSettingsProp
               />
             </div>
 
+            {/* Gender Select */}
             <div>
               <Label htmlFor="gender">Gender</Label>
               <Select value={gender} onValueChange={setGender}>
@@ -90,6 +101,7 @@ export function ProfileSettings({ profile, onSave, onBack }: ProfileSettingsProp
               </Select>
             </div>
 
+            {/* Height Input (allows flexible text input) */}
             <div>
               <Label htmlFor="height">Height</Label>
               <Input
@@ -102,6 +114,7 @@ export function ProfileSettings({ profile, onSave, onBack }: ProfileSettingsProp
               />
             </div>
 
+            {/* Weight Input (allows flexible text input) */}
             <div>
               <Label htmlFor="weight">Weight</Label>
               <Input
@@ -114,11 +127,12 @@ export function ProfileSettings({ profile, onSave, onBack }: ProfileSettingsProp
               />
             </div>
 
+            {/* Calorie Goal Input */}
             <div>
               <Label htmlFor="calorie-goal">Daily Calorie Goal</Label>
               <Input
                 id="calorie-goal"
-                type="number"
+                type="number" // Restricts input to numeric values
                 value={calorieGoal}
                 onChange={(e) => setCalorieGoal(e.target.value)}
                 placeholder="e.g., 2000"
@@ -126,6 +140,7 @@ export function ProfileSettings({ profile, onSave, onBack }: ProfileSettingsProp
               />
             </div>
 
+            {/* Dietary Preference Select */}
             <div>
               <Label htmlFor="diet">Dietary Preference</Label>
               <Select value={diet} onValueChange={setDiet}>
@@ -146,6 +161,7 @@ export function ProfileSettings({ profile, onSave, onBack }: ProfileSettingsProp
             </div>
           </div>
 
+          {/* Action buttons */}
           <div className="flex justify-end space-x-3 pt-6">
             <Button variant="outline" onClick={onBack}>
               Cancel

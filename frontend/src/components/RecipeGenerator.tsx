@@ -4,33 +4,40 @@ import { Card, CardContent } from './ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Label } from './ui/label';
-import { Textarea } from './ui/textarea'; // Assuming you have this component
-import ReactMarkdown from 'react-markdown'; // Library needed for displaying Markdown
+import { Textarea } from './ui/textarea'; 
+import ReactMarkdown from 'react-markdown'; 
 import type { PantryItem } from '../App';
-// NOTE: The generateRecipe import is no longer used, but kept for type reference
-import { generateRecipe } from '../lib/gemini';
+
 
 type RecipeGeneratorProps = {
-  pantryItems: PantryItem[];
+  pantryItems: PantryItem[]; // List of ingredients available in the user's pantry
 };
 
 export function RecipeGenerator({ pantryItems }: RecipeGeneratorProps) {
+  // State for controlling the Filter Dialog and user preferences
   const [showFilterDialog, setShowFilterDialog] = useState(false);
   const [costFilter, setCostFilter] = useState<string>('all');
   const [timeFilter, setTimeFilter] = useState<string>('all');
   const [skillFilter, setSkillFilter] = useState<string>('all');
   const [userNotes, setUserNotes] = useState<string>('');
 
-  // State for AI Generation
+  // State for AI Generation results and loading status
   const [isLoading, setIsLoading] = useState(false);
   const [generatedRecipe, setGeneratedRecipe] = useState<string | null>(null);
   const [showRecipeDialog, setShowRecipeDialog] = useState(false);
 
+  /**
+   * Clears the previous recipe and opens the filter dialog to start a new request.
+   */
   const handleWhatCanIMake = () => {
     setGeneratedRecipe(null); // Clear previous recipe
     setShowFilterDialog(true);
   };
 
+  /**
+   * Constructs the prompt, calls the backend API to generate a recipe,
+   * and handles the response or error.
+   */
   const handleGenerateRecipes = async () => {
     setShowFilterDialog(false);
     setIsLoading(true);
@@ -62,14 +69,14 @@ export function RecipeGenerator({ pantryItems }: RecipeGeneratorProps) {
     `;
 
     try {
-      const backendUrl = 'http://localhost:5000/api/generate-recipe'; // <-- MATCH PYTHON PORT
+      const backendUrl = 'http://localhost:5000/api/generate-recipe'; // Target the Python/Flask backend
 
       const response = await fetch(backendUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ prompt: prompt}), // Sending the dynamic prompt
+        body: JSON.stringify({ prompt: prompt}), // Send the dynamic prompt to the backend
       });
 
       if (!response.ok) {
@@ -78,7 +85,7 @@ export function RecipeGenerator({ pantryItems }: RecipeGeneratorProps) {
 
       const data = await response.json();
 
-      // Use the recipe returned from the Python server
+      // Assuming the backend returns the generated text under the key 'recipe'
       setGeneratedRecipe(data.recipe);
 
     } catch (error) {
@@ -88,7 +95,7 @@ export function RecipeGenerator({ pantryItems }: RecipeGeneratorProps) {
 
     setIsLoading(false);
     setShowRecipeDialog(true);
-    // Reset filters and notes
+    // Reset filters and notes after generation
     setCostFilter('all');
     setTimeFilter('all');
     setSkillFilter('all');
@@ -97,7 +104,7 @@ export function RecipeGenerator({ pantryItems }: RecipeGeneratorProps) {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-      {/* Hero Section */}
+      {/* Hero Section: Main entry point */}
       <div className="text-center mb-12">
         <h1 className="text-gray-900 mb-4">🍽️ Recipe Generator</h1>
         <p className="text-gray-600 mb-8">
@@ -113,10 +120,9 @@ export function RecipeGenerator({ pantryItems }: RecipeGeneratorProps) {
         </Button>
       </div>
 
-      {/* Pantry Preview Section (showing items from App.tsx) */}
+      {/* Pantry Preview Section */}
       <div className="mt-16">
         <h2 className="text-gray-900 mb-6">Available Items in Your Pantry</h2>
-        {/* ... (Pantry Item Card rendering remains the same) ... */}
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
           {pantryItems.length > 0 ? (
             pantryItems.map((item) => (
@@ -135,7 +141,7 @@ export function RecipeGenerator({ pantryItems }: RecipeGeneratorProps) {
         </div>
       </div>
 
-      {/* Filter Dialog */}
+      {/* Filter Dialog: Collects user preferences before calling the AI */}
       <Dialog open={showFilterDialog} onOpenChange={setShowFilterDialog}>
         <DialogContent>
           <DialogHeader>
@@ -145,17 +151,19 @@ export function RecipeGenerator({ pantryItems }: RecipeGeneratorProps) {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 mt-4">
-            {/* Cost, Time, Skill Selects */}
-            {/* ... (omitted for brevity, but they use state: costFilter, timeFilter, skillFilter) ... */}
+            {/* Cost Select */}
             <div><Label htmlFor="cost-filter">Cost</Label><Select id="cost-filter" value={costFilter} onValueChange={setCostFilter} className="mt-2"><SelectTrigger><SelectValue placeholder="Select cost range">{costFilter}</SelectValue></SelectTrigger><SelectContent><SelectItem value="all">All</SelectItem><SelectItem value="low">Low</SelectItem><SelectItem value="medium">Medium</SelectItem><SelectItem value="high">High</SelectItem></SelectContent></Select></div>
+            {/* Time Select */}
             <div><Label htmlFor="time-filter">Preparation Time</Label><Select id="time-filter" value={timeFilter} onValueChange={setTimeFilter} className="mt-2"><SelectTrigger><SelectValue placeholder="Select time range">{timeFilter}</SelectValue></SelectTrigger><SelectContent><SelectItem value="all">All</SelectItem><SelectItem value="quick">Quick (30 min or less)</SelectItem><SelectItem value="medium">Medium (30-60 min)</SelectItem><SelectItem value="long">Long (60+ min)</SelectItem></SelectContent></Select></div>
-            <div><Label htmlFor="skill-filter">Skill Level</Label><Select id="skill-filter" value={skillFilter} onValueChange={setTimeFilter} className="mt-2"><SelectTrigger><SelectValue placeholder="Select skill level">{skillFilter}</SelectValue></SelectTrigger><SelectContent><SelectItem value="all">All</SelectItem><SelectItem value="beginner">Beginner</SelectItem><SelectItem value="intermediate">Intermediate</SelectItem><SelectItem value="advanced">Advanced</SelectItem></SelectContent></Select></div>
+            {/* Skill Select */}
+            {/* NOTE: If you previously had an issue where skill level incorrectly set time, ensure onValueChange={setSkillFilter} is used here, though in the provided code snippet it's set to setTimeFilter, which I assume is an error from a previous iteration and should be fixed in production code. */}
+            <div><Label htmlFor="skill-filter">Skill Level</Label><Select id="skill-filter" value={skillFilter} onValueChange={setSkillFilter} className="mt-2"><SelectTrigger><SelectValue placeholder="Select skill level">{skillFilter}</SelectValue></SelectTrigger><SelectContent><SelectItem value="all">All</SelectItem><SelectItem value="beginner">Beginner</SelectItem><SelectItem value="intermediate">Intermediate</SelectItem><SelectItem value="advanced">Advanced</SelectItem></SelectContent></Select></div>
 
-            {/* Additional Notes Textarea (using id="notes-filter" for the Label fix) */}
+            {/* Additional Notes Textarea */}
             <div>
               <Label htmlFor="notes-filter">Additional Notes (e.g., dietary restrictions, flavor profile)</Label>
               <Textarea
-                id="notes-filter" // <--- Important: Matches Label htmlFor
+                id="notes-filter" 
                 value={userNotes}
                 onChange={(e) => setUserNotes(e.target.value)}
                 placeholder="e.g., Must be gluten-free, or needs to be a spicy dish."
@@ -163,6 +171,7 @@ export function RecipeGenerator({ pantryItems }: RecipeGeneratorProps) {
               />
             </div>
 
+            {/* Dialog Actions */}
             <div className="flex justify-end space-x-2">
               <Button variant="outline" onClick={() => setShowFilterDialog(false)} disabled={isLoading}>
                 Cancel
@@ -175,14 +184,9 @@ export function RecipeGenerator({ pantryItems }: RecipeGeneratorProps) {
         </DialogContent>
       </Dialog>
 
-      {/* Recipe Result Dialog */}
+      {/* Recipe Result Dialog: Displays the AI-generated recipe */}
       <Dialog open={showRecipeDialog} onOpenChange={setShowRecipeDialog}>
-        {/*
-          CRITICAL CLASSES:
-          1. max-w-xl: Sets a maximum width.
-          2. h-[80vh]: Sets the dialog to a fixed height (80% of viewport height).
-          3. flex flex-col: Makes the content children stack vertically and allows flex-grow to work.
-        */}
+        {/* Critical classes to make the dialog content scrollable */}
         <DialogContent className="max-w-xl h-[80vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>🎉 Your AI-Generated Recipe!</DialogTitle>
@@ -191,16 +195,11 @@ export function RecipeGenerator({ pantryItems }: RecipeGeneratorProps) {
             </DialogDescription>
           </DialogHeader>
 
-          {/*
-            SCROLLABLE CONTENT AREA:
-            1. flex-grow: Takes up all available vertical space in the flex column (the 80vh dialog).
-            2. overflow-y-auto: Enables vertical scrolling when content exceeds the allotted height.
-          */}
+          {/* Scrollable Content Area: uses flex-grow and overflow-y-auto */}
           <div className="flex-grow overflow-y-auto p-4 border rounded-md bg-gray-50">
             {generatedRecipe ? (
                 <>
-                  {/* Cleaned up console.log to be a valid expression followed by ReactMarkdown */}
-                  {console.log("DEBUG: Generated Recipe Content (Length:", generatedRecipe.length, "):", generatedRecipe)}
+                  {/* ReactMarkdown renders the AI's Markdown output into formatted HTML */}
                   <ReactMarkdown>
                     {generatedRecipe}
                   </ReactMarkdown>

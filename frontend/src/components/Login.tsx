@@ -5,13 +5,13 @@ import { Label } from './ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { ChefHat } from 'lucide-react';
 
-import { auth } from '../firebase';
-import { signInWithEmailAndPassword } from 'firebase/auth';
+import { auth } from '../firebase'; 
+import { signInWithEmailAndPassword } from 'firebase/auth'; 
 
 type LoginProps = {
-  onLogin: () => void;
-  onBackToLanding: () => void;
-  onSwitchToSignUp: () => void;
+  onLogin: () => void;           // Callback function fired on successful login to navigate to the app
+  onBackToLanding: () => void;   // Callback to navigate back to the landing page
+  onSwitchToSignUp: () => void;  // Callback to switch the view to the Sign Up form
 };
 
 export function Login({ onLogin, onBackToLanding, onSwitchToSignUp }: LoginProps) {
@@ -19,15 +19,19 @@ export function Login({ onLogin, onBackToLanding, onSwitchToSignUp }: LoginProps
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
+  /**
+   * Handles the form submission for user login using Firebase.
+   */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
+      // Calls the Firebase sign-in function
       await signInWithEmailAndPassword(auth, email, password);
       console.log("Logged in:", auth.currentUser);
       alert("Signed in successfully!");
-      onLogin(); // move user to next screen
+      onLogin(); 
     } catch (err: any) {
       alert(err.message);
     } finally {
@@ -36,8 +40,11 @@ export function Login({ onLogin, onBackToLanding, onSwitchToSignUp }: LoginProps
   };
 
   return (
+    // Centered container with background gradient for the whole screen
     <div className="min-h-screen bg-gradient-to-b from-orange-50 to-white flex items-center justify-center px-4">
       <div className="w-full max-w-md">
+        
+        {/* Header/Branding Area */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center space-x-2 mb-4">
             <ChefHat className="size-10 text-orange-600" />
@@ -47,12 +54,14 @@ export function Login({ onLogin, onBackToLanding, onSwitchToSignUp }: LoginProps
           <p className="text-gray-600">Your kitchen missed you</p>
         </div>
 
+        {/* Login Card */}
         <Card>
           <CardHeader>
             <CardTitle>Log in to your account</CardTitle>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
+              {/* Email Input Field */}
               <div>
                 <Label htmlFor="email">Email</Label>
                 <Input
@@ -65,6 +74,7 @@ export function Login({ onLogin, onBackToLanding, onSwitchToSignUp }: LoginProps
                   className="mt-2"
                 />
               </div>
+              {/* Password Input Field */}
               <div>
                 <Label htmlFor="password">Password</Label>
                 <Input
@@ -77,11 +87,13 @@ export function Login({ onLogin, onBackToLanding, onSwitchToSignUp }: LoginProps
                   className="mt-2"
                 />
               </div>
+              {/* Submit Button: Disabled while 'loading' */}
               <Button type="submit" className="w-full" disabled={loading}>
                 {loading ? "Logging in..." : "Log In"}
               </Button>
             </form>
 
+            {/* Navigation Links (Sign Up and Back to Home) */}
             <div className="mt-6 text-center space-y-2">
               <p className="text-gray-600 text-sm">
                 Don't have an account?{' '}
@@ -105,4 +117,3 @@ export function Login({ onLogin, onBackToLanding, onSwitchToSignUp }: LoginProps
     </div>
   );
 }
-

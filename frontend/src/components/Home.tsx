@@ -7,7 +7,7 @@ import { Textarea } from './ui/textarea';
 import { Card, CardContent } from './ui/card';
 import type { PantryItem, MealPlan } from '../App';
 
-// Define the expected structure from the AI JSON response for a single day
+// Define the expected structured response for a single day in the AI-generated plan
 type RawMealPlanDay = {
   day: string;
   breakfast: string;
@@ -23,13 +23,15 @@ type RawMealPlanResponse = {
 
 type HomeProps = {
   pantryItems: PantryItem[];
-  isStructuredMode: boolean;
-  mealPlan: MealPlan[];
+  isStructuredMode: boolean; // Controls whether to show single recipe finder or meal plan interface
+  mealPlan: MealPlan[]; // Default/Existing meal plan structure
   onNavigateToPantry: () => void;
+  // Function to fetch relevant recipe names from the database based on user filters
   fetchRecipesByFilters: (filters: { costOfIngredients: string; timeTakenToCook: string; skillLevel: string; }) => Promise<string[]>;
 };
 
 export function Home({ pantryItems, isStructuredMode, mealPlan, onNavigateToPantry, fetchRecipesByFilters }: HomeProps) {
+  // State for single recipe generation filters ('What can I make now?')
   const [showFilterDialog, setShowFilterDialog] = useState(false);
   const [costFilter, setCostFilter] = useState<string>('all');
   const [timeFilter, setTimeFilter] = useState<string>('all');
@@ -37,16 +39,17 @@ export function Home({ pantryItems, isStructuredMode, mealPlan, onNavigateToPant
   const [additionalNotes, setAdditionalNotes] = useState<string>('');
   const [showRecipeDialog, setShowRecipeDialog] = useState(false);
   const [selectedMeal, setSelectedMeal] = useState<MealPlan | null>(null);
+
+  // State for meal plan generation filters
   const [showMealPlanDialog, setShowMealPlanDialog] = useState(false);
   const [mealPlanBudget, setMealPlanBudget] = useState<string>('all');
   const [mealPlanTime, setMealPlanTime] = useState<string>('all');
   const [mealPlanSkill, setMealPlanSkill] = useState<string>('all');
 
-  // NEW STATE: Loading indicator and raw response storage for meal plan
+  // State for AI Generation
   const [isGeneratingMealPlan, setIsGeneratingMealPlan] = useState(false);
-  const [rawMealPlanResponse, setRawMealPlanResponse] = useState<string | null>(null);
-  // State to hold the final parsed, structured meal plan for display
-  const [generatedMealPlan, setGeneratedMealPlan] = useState<RawMealPlanDay[] | null>(null);
+  const [rawMealPlanResponse, setRawMealPlanResponse] = useState<string | null>(null); // For debugging failed parsing
+  const [generatedMealPlan, setGeneratedMealPlan] = useState<RawMealPlanDay[] | null>(null); // The final, structured plan
 
   const handleWhatCanIMake = () => {
     setShowFilterDialog(true);
@@ -57,14 +60,15 @@ export function Home({ pantryItems, isStructuredMode, mealPlan, onNavigateToPant
     setShowRecipeDialog(true);
   };
 
-  // Renamed for clarity: handleFilterRecipes is used when filtering for single recipe generation
+  /**
+   * Placeholder handler for the single "Find Recipes" button (in the filter dialog).
+   * In a complete app, this would trigger a single recipe AI generation.
+   */
   const handleFilterRecipes = async () => {
     setShowFilterDialog(false);
+    console.log('Filters for single recipe:', { costFilter, timeFilter, skillFilter, additionalNotes });
 
-    // NOTE: For the "What Can I Make Now?" path, you would typically
-    // run the filters here and immediately generate a recipe using the result.
-    // For now, we'll just log and reset filters.
-    console.log('Filters:', { costFilter, timeFilter, skillFilter, additionalNotes });
+    // TODO: Implement the fetch call for single recipe generation here
 
     // Reset filters
     setCostFilter('all');
@@ -73,13 +77,16 @@ export function Home({ pantryItems, isStructuredMode, mealPlan, onNavigateToPant
     setAdditionalNotes('');
   };
 
+  /**
+   * Step 1 of meal plan generation: Fetch relevant recipe names from Firebase/Database
+   * based on the budget, time, and skill filters selected in the dialog.
+   */
   const handleFilterAndGenerateMealPlan = async () => {
     setIsGeneratingMealPlan(true);
     setGeneratedMealPlan(null);
     setRawMealPlanResponse(null);
     setShowMealPlanDialog(false);
 
-    // 1. FILTER AND FETCH RECIPE NAMES FROM FIREBASE
     const filters = {
       costOfIngredients: mealPlanBudget,
       timeTakenToCook: mealPlanTime,
@@ -88,41 +95,35 @@ export function Home({ pantryItems, isStructuredMode, mealPlan, onNavigateToPant
 
     let availableRecipeNames: string[] = [];
     try {
-      console.log("Fetching recipes from Firebase with filters:", filters);
-      // Execute the function passed from props
+      // Fetch recipe names using the prop function
       availableRecipeNames = await fetchRecipesByFilters(filters);
-      console.log("Successfully retrieved recipes:", availableRecipeNames.length);
-
-      if (availableRecipeNames.length === 0) {
-        alert("No recipes found matching your filters. Generating plan with all recipes/common suggestions.");
-      }
-
     } catch (error) {
       console.error("Error retrieving recipes from Firebase:", error);
       alert("Error fetching recipes. Generating plan without recipe constraints.");
-      // Fallback: If fetching fails, proceed with an empty list.
-      availableRecipeNames = [];
+      availableRecipeNames = []; // Ensure it's an array for the next step
     }
 
-    // 2. GENERATE PLAN WITH THE FILTERED NAMES
+    // Proceed to Step 2: Generate the plan using the retrieved recipe names
     await handleGenerateMealPlan(availableRecipeNames);
   };
 
+  /**
+   * Step 2 of meal plan generation: Construct the prompt and call the AI backend.
+   * @param availableRecipeNames - Names fetched from the database in Step 1.
+   */
   const handleGenerateMealPlan = async (availableRecipeNames: string[]) => {
     setIsGeneratingMealPlan(true);
-    setGeneratedMealPlan(null); // Clear previous plan
-    setRawMealPlanResponse(null); // Clear previous debug response
-    setShowMealPlanDialog(false); // Close the dialog immediately
+    setGeneratedMealPlan(null);
+    setRawMealPlanResponse(null);
 
-    // 1. Collect Ingredients
+    // 1. Collect Ingredients for context
     const ingredientsList = pantryItems
     .map(item => `${item.quantity} of ${item.name}`)
     .join(', ');
 
-    // 2. Collect Available Recipe Names (Now passed as argument)
+    // 2. Construct the Dynamic Prompt, including the filtered recipe names
     const recipeNamesList = availableRecipeNames.join(', ');
 
-    // 3. Construct the Dynamic Prompt
     const prompt = `
       You are an expert chef and meal planner. Generate a 5-day meal plan (Monday to Friday) based on the following:
 
@@ -148,7 +149,6 @@ export function Home({ pantryItems, isStructuredMode, mealPlan, onNavigateToPant
         `;
 
     try {
-      // Assuming a new backend endpoint for meal plan generation (Using existing endpoint for demo)
       const backendUrl = 'http://localhost:5000/api/generate-recipe';
 
       const response = await fetch(backendUrl, {
@@ -164,39 +164,32 @@ export function Home({ pantryItems, isStructuredMode, mealPlan, onNavigateToPant
       }
 
       const data = await response.json();
-      const rawTextResponse = data.recipe; // The key is 'recipe' from the Python response
-
-      console.log('Successfully generated meal plan data:', rawTextResponse);
+      const rawTextResponse = data.recipe;
 
       // 3. PARSE AND STRUCTURE THE JSON RESPONSE
       try {
-        // ✅ FIX 1: Use regex to find and isolate the JSON block.
-        // This regex captures content starting from the first { and ending at the last }
+        // Use regex to robustly find and isolate the JSON block, ignoring surrounding text
         const jsonMatch = rawTextResponse.match(/\{[\s\S]*\}/);
 
         if (!jsonMatch || jsonMatch.length === 0) {
           throw new Error("Could not find a valid JSON object within the AI's response.");
         }
 
-        const jsonString = jsonMatch[0]; // The captured JSON string
-
+        const jsonString = jsonMatch[0];
         const parsedData: RawMealPlanResponse = JSON.parse(jsonString);
 
         if (parsedData.plan && Array.isArray(parsedData.plan)) {
-          setGeneratedMealPlan(parsedData.plan); // Set the structured plan for display
+          setGeneratedMealPlan(parsedData.plan); // Success: Set the structured plan
         } else {
           throw new Error("Invalid 'plan' array structure returned by the AI.");
         }
       } catch (jsonError) {
+        // Failure: Display the raw response for debugging the JSON format
         console.error("Failed to parse AI response as JSON:", rawTextResponse, jsonError);
-        // Display a more specific message about the parsing failure
         setRawMealPlanResponse(`AI output was received but failed to parse as JSON. Raw output starts: ${rawTextResponse.substring(0, 300)}...`);
-        setGeneratedMealPlan(null);
       }
 
-      // Set the raw response for debugging (even if parsing succeeded)
-      setRawMealPlanResponse(rawTextResponse);
-
+      setRawMealPlanResponse(rawTextResponse); // Set raw response for potential debug viewing
 
     } catch (error) {
       console.error('Error fetching meal plan from backend:', error);
@@ -212,10 +205,10 @@ export function Home({ pantryItems, isStructuredMode, mealPlan, onNavigateToPant
     setMealPlanSkill('all');
   };
 
-  // Determine which meal plan to display
+  // Determine which meal plan array to display (AI-generated takes precedence)
   const currentPlan = generatedMealPlan || mealPlan;
 
-  // Function to render a single meal card in the new structure
+  // Function to render the new, detailed AI-generated meal plan structure
   const renderNewMealCard = (meal: RawMealPlanDay) => (
       <Card key={meal.day}>
         <CardContent className="flex flex-col p-4 space-y-2">
@@ -230,13 +223,12 @@ export function Home({ pantryItems, isStructuredMode, mealPlan, onNavigateToPant
       </Card>
   );
 
-  // The existing mealPlan prop uses a different structure, so we need a render function for it
+  // Function to render the existing meal plan structure (before AI generation)
   const renderOldMealCard = (meal: MealPlan) => (
       <Card key={meal.id}>
         <CardContent className="flex justify-between items-center p-4">
           <div className="flex items-center space-x-4">
             <span className="text-gray-900 min-w-[100px] font-medium">{meal.day}</span>
-            {/* Displaying just the recipe name for brevity */}
             <span className="text-gray-700">{meal.recipe.name}</span>
           </div>
           <Button
@@ -252,11 +244,12 @@ export function Home({ pantryItems, isStructuredMode, mealPlan, onNavigateToPant
 
   return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        {/* Hero Section */}
+        {/* Hero Section: Conditional Rendering based on isStructuredMode */}
         <div className="text-center mb-12">
           <h1 className="text-gray-900 mb-6 text-3xl font-bold">Welcome to Your Recipe Assistant</h1>
 
           {!isStructuredMode ? (
+              // Mode 1: Single Recipe Finder
               <Button
                   onClick={handleWhatCanIMake}
                   size="lg"
@@ -265,6 +258,7 @@ export function Home({ pantryItems, isStructuredMode, mealPlan, onNavigateToPant
                 What can I make now?
               </Button>
           ) : (
+              // Mode 2: Meal Plan Viewer/Generator
               <div className="max-w-3xl mx-auto">
                 <div className="flex justify-between items-center mb-6">
                   <h2 className="text-gray-900 text-xl font-semibold">
@@ -275,17 +269,15 @@ export function Home({ pantryItems, isStructuredMode, mealPlan, onNavigateToPant
                   </Button>
                 </div>
                 <div className="space-y-3">
-                  {/* Updated Display Logic */}
+                  {/* Display the generated plan if available, otherwise display the default plan */}
                   {generatedMealPlan ? (
-                      // Render the new, detailed AI-generated plan
                       generatedMealPlan.map(renderNewMealCard)
                   ) : (
-                      // Fallback to rendering the existing mealPlan prop
                       mealPlan.map(renderOldMealCard)
                   )}
                 </div>
 
-                {/* DEBUG OUTPUT: Show raw response only if the structured parsing failed */}
+                {/* DEBUG OUTPUT: Visible only if parsing failed, showing the raw AI response */}
                 {rawMealPlanResponse && !generatedMealPlan && (
                     <div className="mt-8 p-4 bg-red-100 border border-red-300 rounded-md whitespace-pre-wrap text-xs text-red-700">
                       <h3 className="font-semibold mb-2">Error: Failed to Parse Structured Plan</h3>
@@ -306,9 +298,9 @@ export function Home({ pantryItems, isStructuredMode, mealPlan, onNavigateToPant
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
           {pantryItems
-            // FIX: Filter out empty "ghost" items before displaying
+            // Filter out items without a name (to handle "ghost" items)
             .filter(item => item.name && item.name.trim() !== '')
-            .slice(0, 8)
+            .slice(0, 8) // Show up to 8 items for a quick preview
             .map((item) => (
               <Card key={item.id} className="hover:shadow-md transition-shadow">
                 <CardContent className="p-4">
@@ -325,7 +317,7 @@ export function Home({ pantryItems, isStructuredMode, mealPlan, onNavigateToPant
         </div>
       </div>
 
-      {/* Filter Dialog */}
+      {/* Filter Dialog: For "What can I make now?" (Single Recipe) */}
       <Dialog open={showFilterDialog} onOpenChange={setShowFilterDialog}>
         <DialogContent>
           <DialogHeader>
@@ -335,6 +327,7 @@ export function Home({ pantryItems, isStructuredMode, mealPlan, onNavigateToPant
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 mt-4">
+            {/* Cost Filter */}
             <div>
               <Label htmlFor="cost-filter">Cost</Label>
               <Select
@@ -352,6 +345,7 @@ export function Home({ pantryItems, isStructuredMode, mealPlan, onNavigateToPant
                 </SelectContent>
               </Select>
             </div>
+            {/* Time Filter */}
             <div>
               <Label htmlFor="time-filter">Time</Label>
               <Select
@@ -369,11 +363,12 @@ export function Home({ pantryItems, isStructuredMode, mealPlan, onNavigateToPant
                 </SelectContent>
               </Select>
             </div>
+            {/* Skill Level Filter */}
             <div>
               <Label htmlFor="skill-filter">Skill Level</Label>
               <Select
                 value={skillFilter}
-                onValueChange={setSkillFilter}
+                onValueChange={setSkillFilter} // Correct setter for skillFilter
               >
                 <SelectTrigger id="skill-filter" className="mt-2">
                   <SelectValue placeholder="Any level" />
@@ -386,6 +381,7 @@ export function Home({ pantryItems, isStructuredMode, mealPlan, onNavigateToPant
                 </SelectContent>
               </Select>
             </div>
+            {/* Additional Notes */}
             <div>
               <Label htmlFor="additional-notes">Additional Notes</Label>
               <Textarea
@@ -408,7 +404,7 @@ export function Home({ pantryItems, isStructuredMode, mealPlan, onNavigateToPant
         </DialogContent>
       </Dialog>
 
-      {/* Recipe Detail Dialog */}
+      {/* Recipe Detail Dialog: Shows full recipe for an item in the *old* meal plan */}
       <Dialog open={showRecipeDialog} onOpenChange={setShowRecipeDialog}>
         <DialogContent>
           <DialogHeader>
@@ -441,7 +437,7 @@ export function Home({ pantryItems, isStructuredMode, mealPlan, onNavigateToPant
         </DialogContent>
       </Dialog>
 
-        {/* Generate Meal Plan Dialog */}
+        {/* Generate Meal Plan Dialog: For setting filters for weekly plan generation */}
         <Dialog open={showMealPlanDialog} onOpenChange={setShowMealPlanDialog}>
           <DialogContent>
             <DialogHeader>
@@ -451,7 +447,7 @@ export function Home({ pantryItems, isStructuredMode, mealPlan, onNavigateToPant
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 mt-4">
-              {/* ... (Budget, Time, Skill Selects remain unchanged) ... */}
+              {/* Budget Filter */}
               <div>
                 <Label htmlFor="budget-filter">Budget</Label>
                 <Select
@@ -469,6 +465,7 @@ export function Home({ pantryItems, isStructuredMode, mealPlan, onNavigateToPant
                   </SelectContent>
                 </Select>
               </div>
+              {/* Time to Cook Filter */}
               <div>
                 <Label htmlFor="time-to-cook-filter">Time to Cook</Label>
                 <Select
@@ -486,6 +483,7 @@ export function Home({ pantryItems, isStructuredMode, mealPlan, onNavigateToPant
                   </SelectContent>
                 </Select>
               </div>
+              {/* Skill Level Filter */}
               <div>
                 <Label htmlFor="skill-level-filter">Skill Level</Label>
                 <Select
@@ -508,7 +506,7 @@ export function Home({ pantryItems, isStructuredMode, mealPlan, onNavigateToPant
                   Cancel
                 </Button>
                 <Button
-                    onClick={handleFilterAndGenerateMealPlan} // <-- UPDATED CALL
+                    onClick={handleFilterAndGenerateMealPlan} // Triggers the two-step process
                     disabled={isGeneratingMealPlan}
                     className="bg-orange-600 hover:bg-orange-700 text-white"
                 >

@@ -1,9 +1,9 @@
-// src/firebase.ts
+
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
-// Your web app's Firebase configuration
+//Web app's Firebase configuration
 const firebaseConfig = {
   apiKey: "AIzaSyAsrL297pAEH1SsHpsnLYtNpejpsbibxAQ",
   authDomain: "mealmind-47927.firebaseapp.com",
