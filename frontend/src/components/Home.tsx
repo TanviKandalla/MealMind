@@ -26,9 +26,10 @@ type HomeProps = {
   isStructuredMode: boolean;
   mealPlan: MealPlan[];
   onNavigateToPantry: () => void;
+  fetchRecipesByFilters: (filters: { costOfIngredients: string; timeTakenToCook: string; skillLevel: string; }) => Promise<string[]>;
 };
 
-export function Home({ pantryItems, isStructuredMode, mealPlan, onNavigateToPantry }: HomeProps) {
+export function Home({ pantryItems, isStructuredMode, mealPlan, onNavigateToPantry, fetchRecipesByFilters }: HomeProps) {
   const [showFilterDialog, setShowFilterDialog] = useState(false);
   const [costFilter, setCostFilter] = useState<string>('all');
   const [timeFilter, setTimeFilter] = useState<string>('all');
@@ -56,10 +57,15 @@ export function Home({ pantryItems, isStructuredMode, mealPlan, onNavigateToPant
     setShowRecipeDialog(true);
   };
 
-  const handleFindRecipes = () => {
-    // In a real app, this would filter recipes based on the selected filters
-    console.log('Filters:', { costFilter, timeFilter, skillFilter, additionalNotes });
+  // Renamed for clarity: handleFilterRecipes is used when filtering for single recipe generation
+  const handleFilterRecipes = async () => {
     setShowFilterDialog(false);
+
+    // NOTE: For the "What Can I Make Now?" path, you would typically
+    // run the filters here and immediately generate a recipe using the result.
+    // For now, we'll just log and reset filters.
+    console.log('Filters:', { costFilter, timeFilter, skillFilter, additionalNotes });
+
     // Reset filters
     setCostFilter('all');
     setTimeFilter('all');
@@ -67,7 +73,42 @@ export function Home({ pantryItems, isStructuredMode, mealPlan, onNavigateToPant
     setAdditionalNotes('');
   };
 
-  const handleGenerateMealPlan = async () => {
+  const handleFilterAndGenerateMealPlan = async () => {
+    setIsGeneratingMealPlan(true);
+    setGeneratedMealPlan(null);
+    setRawMealPlanResponse(null);
+    setShowMealPlanDialog(false);
+
+    // 1. FILTER AND FETCH RECIPE NAMES FROM FIREBASE
+    const filters = {
+      costOfIngredients: mealPlanBudget,
+      timeTakenToCook: mealPlanTime,
+      skillLevel: mealPlanSkill
+    };
+
+    let availableRecipeNames: string[] = [];
+    try {
+      console.log("Fetching recipes from Firebase with filters:", filters);
+      // Execute the function passed from props
+      availableRecipeNames = await fetchRecipesByFilters(filters);
+      console.log("Successfully retrieved recipes:", availableRecipeNames.length);
+
+      if (availableRecipeNames.length === 0) {
+        alert("No recipes found matching your filters. Generating plan with all recipes/common suggestions.");
+      }
+
+    } catch (error) {
+      console.error("Error retrieving recipes from Firebase:", error);
+      alert("Error fetching recipes. Generating plan without recipe constraints.");
+      // Fallback: If fetching fails, proceed with an empty list.
+      availableRecipeNames = [];
+    }
+
+    // 2. GENERATE PLAN WITH THE FILTERED NAMES
+    await handleGenerateMealPlan(availableRecipeNames);
+  };
+
+  const handleGenerateMealPlan = async (availableRecipeNames: string[]) => {
     setIsGeneratingMealPlan(true);
     setGeneratedMealPlan(null); // Clear previous plan
     setRawMealPlanResponse(null); // Clear previous debug response
@@ -78,16 +119,25 @@ export function Home({ pantryItems, isStructuredMode, mealPlan, onNavigateToPant
     .map(item => `${item.quantity} of ${item.name}`)
     .join(', ');
 
-    // 2. Construct the Dynamic Prompt (Updated to include all 4 meals/snack)
-    const prompt = `
-            You are an expert chef and meal planner. Generate a 5-day meal plan (Monday to Friday) based on the following:
+    // 2. Collect Available Recipe Names (Now passed as argument)
+    const recipeNamesList = availableRecipeNames.join(', ');
 
-            Available Ingredients: ${ingredientsList || 'None listed. Prioritize using common, affordable items.'}
-            Budget Preference: ${mealPlanBudget}
-            Time Preference: ${mealPlanTime}
-            Skill Level: ${mealPlanSkill}
-            
-            The output MUST be a JSON object with the following structure:
+    // 3. Construct the Dynamic Prompt
+    const prompt = `
+      You are an expert chef and meal planner. Generate a 5-day meal plan (Monday to Friday) based on the following:
+
+      Available Ingredients (for reference): ${ingredientsList || 'None listed.'}
+      Available Recipes in Database: [${recipeNamesList}]
+      
+      Instructions:
+      1. For the meal plan, you **MUST ONLY** use recipe names found in the [${recipeNamesList}] list.
+      2. If a recipe from the list is not suitable for a specific meal (e.g., a "Dinner" recipe for "Breakfast"), suggest a generic snack or simple item like "Toast and Jam" or "Quick Salad" if no appropriate recipe name is available for that slot.
+      
+      Budget Preference: ${mealPlanBudget}
+      Time Preference: ${mealPlanTime}
+      Skill Level: ${mealPlanSkill}
+      
+      The output MUST be a JSON object with the following structure:
             {
               "plan": [
                 { "day": "Monday", "breakfast": "Recipe Name for Breakfast", "lunch": "Recipe Name for Lunch", "dinner": "Recipe Name for Dinner", "snack": "Snack Idea" },
@@ -296,9 +346,9 @@ export function Home({ pantryItems, isStructuredMode, mealPlan, onNavigateToPant
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Any</SelectItem>
-                  <SelectItem value="low">Low</SelectItem>
-                  <SelectItem value="medium">Medium</SelectItem>
-                  <SelectItem value="high">High</SelectItem>
+                  <SelectItem value="Low">Low</SelectItem>
+                  <SelectItem value="Medium">Medium</SelectItem>
+                  <SelectItem value="High">High</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -312,7 +362,7 @@ export function Home({ pantryItems, isStructuredMode, mealPlan, onNavigateToPant
                   <SelectValue placeholder="Any time" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Any</SelectItem>
+                  <SelectItem value="All">Any</SelectItem>
                   <SelectItem value="quick">Quick (30 min or less)</SelectItem>
                   <SelectItem value="medium">Medium (30-60 min)</SelectItem>
                   <SelectItem value="long">Long (60+ min)</SelectItem>
@@ -329,10 +379,10 @@ export function Home({ pantryItems, isStructuredMode, mealPlan, onNavigateToPant
                   <SelectValue placeholder="Any level" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Any</SelectItem>
-                  <SelectItem value="beginner">Beginner</SelectItem>
-                  <SelectItem value="intermediate">Intermediate</SelectItem>
-                  <SelectItem value="advanced">Advanced</SelectItem>
+                  <SelectItem value="All">Any</SelectItem>
+                  <SelectItem value="Beginner">Beginner</SelectItem>
+                  <SelectItem value="Intermediate">Intermediate</SelectItem>
+                  <SelectItem value="Advanced">Advanced</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -350,7 +400,7 @@ export function Home({ pantryItems, isStructuredMode, mealPlan, onNavigateToPant
               <Button variant="outline" onClick={() => setShowFilterDialog(false)}>
                 Cancel
               </Button>
-              <Button onClick={handleFindRecipes} className="bg-orange-600 hover:bg-orange-700 text-white">
+              <Button onClick={handleFilterRecipes} className="bg-orange-600 hover:bg-orange-700 text-white">
                 Find Recipes
               </Button>
             </div>
@@ -458,11 +508,11 @@ export function Home({ pantryItems, isStructuredMode, mealPlan, onNavigateToPant
                   Cancel
                 </Button>
                 <Button
-                    onClick={handleGenerateMealPlan}
+                    onClick={handleFilterAndGenerateMealPlan} // <-- UPDATED CALL
                     disabled={isGeneratingMealPlan}
                     className="bg-orange-600 hover:bg-orange-700 text-white"
                 >
-                  {isGeneratingMealPlan ? 'Generating...' : 'Generate Plan'}
+                  {isGeneratingMealPlan ? 'Filtering & Generating...' : 'Generate Plan'}
                 </Button>
               </div>
             </div>

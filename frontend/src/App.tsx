@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { db, auth } from './firebase';
 import { onAuthStateChanged, signOut, User } from 'firebase/auth';
-import { collection, getDocs, updateDoc, doc, getDoc, setDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, QuerySnapshot, updateDoc, doc, getDoc, setDoc } from 'firebase/firestore';
 
 import { LandingPage } from './components/LandingPage';
 import { Login } from './components/Login';
@@ -43,6 +43,59 @@ export type MealPlan = {
   day: string;
   recipe: Recipe;
 };
+
+export type RecipeDocument = { // <-- ADD export
+  name: string;
+  costOfIngredients: 'Low' | 'Medium' | 'High';
+  skillLevel: 'Beginner' | 'Intermediate' | 'Advanced';
+};
+
+/**
+ * Queries the Firestore database based on user-selected filters
+ * and returns a list of matching recipe names.
+ * * @param filters Object containing cost, time, and skill level strings.
+ * @returns A Promise that resolves to an array of recipe names (string[]).
+ */
+export async function fetchRecipesByFilters(filters: { costOfIngredients: string; timeTakenToCook: string; skillLevel: string; }): Promise<string[]> {
+  const { costOfIngredients, timeTakenToCook, skillLevel } = filters;
+  const recipesCollection = collection(db, 'Recipes');
+
+  // Start with an empty array for the recipe names
+  const recipeNames: string[] = [];
+  const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+  // 1. Construct the Base Query
+  let q = query(recipesCollection);
+
+  // 2. Add Filters Conditionally
+  // NOTE: Firestore requires separate indexes for each 'where' clause.
+
+  if (costOfIngredients !== 'all') {
+    // Check if the recipe's cost field matches the filter
+    q = query(q, where('costOfIngredients', '==', capitalize(costOfIngredients)));
+  }
+
+  if (skillLevel !== 'all') {
+    // Check if the recipe's skill field matches the filter
+    q = query(q, where('skillLevel', '==', capitalize(skillLevel)));
+  }
+
+  // 3. Execute Query and Process Results
+  try {
+    const querySnapshot: QuerySnapshot<RecipeDocument> = await getDocs(q) as QuerySnapshot<RecipeDocument>;
+
+    querySnapshot.forEach((doc) => {
+      // Get the name field from each matching document
+      recipeNames.push(doc.data().name);
+    });
+
+    return recipeNames;
+  } catch (error) {
+    console.error("Error executing Firebase query:", error);
+    // Important: Rethrow or return an empty array if the database call fails
+    return [];
+  }
+}
 
 export default function App() {
   const [currentPage, setCurrentPage] = useState<'landing' | 'login' | 'signup' | 'profile' | 'home' | 'discovery' | 'pantry' | 'generator'>('landing');
@@ -251,6 +304,7 @@ export default function App() {
     }
   };
 
+
   const handleSaveProfile = (profile: UserProfile) => { setUserProfile(profile); setCurrentPage('home'); };
 
   if (authLoading) {
@@ -302,7 +356,7 @@ export default function App() {
       {/* Main Content Area */}
       <main>
         {currentPage === 'profile' && <ProfileSettings profile={userProfile} onSave={handleSaveProfile} onBack={() => setCurrentPage('home')} />}
-        {currentPage === 'home' && <Home pantryItems={pantryItems} isStructuredMode={isStructuredMode} mealPlan={mealPlan} onNavigateToPantry={() => setCurrentPage('pantry')} />}
+        {currentPage === 'home' && <Home pantryItems={pantryItems} isStructuredMode={isStructuredMode} mealPlan={mealPlan} onNavigateToPantry={() => setCurrentPage('pantry')} fetchRecipesByFilters={fetchRecipesByFilters}/>}
         
         {/* Pass props to RecipeDiscovery: List of recipes AND the Cook Handler */}
         {currentPage === 'discovery' && <RecipeDiscovery recipes={recipes} onMakeRecipe={handleMakeRecipe} />}
