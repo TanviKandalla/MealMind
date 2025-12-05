@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
-import { db } from './firebase'; 
-import { collection, getDocs, addDoc, updateDoc, doc } from 'firebase/firestore';
+import { db, auth } from './firebase';
+import { onAuthStateChanged, signOut, User } from 'firebase/auth';
+import { collection, getDocs, updateDoc, doc, getDoc, setDoc } from 'firebase/firestore';
+
 import { LandingPage } from './components/LandingPage';
 import { Login } from './components/Login';
 import { SignUp } from './components/SignUp';
@@ -12,9 +14,15 @@ import { RecipeGenerator } from './components/RecipeGenerator';
 import { Switch } from './components/ui/switch';
 import { Label } from './components/ui/label';
 import { Button } from './components/ui/button';
-import { ChefHat, User, LogOut } from 'lucide-react';
+import { ChefHat, User as UserIcon, LogOut } from 'lucide-react';
 
 export type PantryItem = {
+  id: string;
+  name: string;
+  quantity: string;
+};
+
+export type ShoppingListItem = {
   id: string;
   name: string;
   quantity: string;
@@ -24,7 +32,7 @@ export type Recipe = {
   id: string;
   name: string;
   cost: 'low' | 'medium' | 'high';
-  time: number; // in minutes
+  time: number;
   skillLevel: 'beginner' | 'intermediate' | 'advanced';
   ingredients: string[];
   instructions: string;
@@ -42,14 +50,39 @@ export default function App() {
   const [isStructuredMode, setIsStructuredMode] = useState(false);
   const [userProfile, setUserProfile] = useState<UserProfile>({});
   
-  // State for data from Firebase
+  // AUTH STATE
+  const [user, setUser] = useState<User | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
+  // DATA STATE
   const [pantryItems, setPantryItems] = useState<PantryItem[]>([]);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
-  const [mealPlan] = useState<MealPlan[]>([]); // Placeholder for now
+  const [mealPlan] = useState<MealPlan[]>([]);
+
+  const [shoppingListItems, setShoppingListItems] = useState<ShoppingListItem[]>([]);
 
   // ---------------------------------------------------------
   // 1. FETCH DATA (RECIPES & PANTRY) ON LOAD
   // ---------------------------------------------------------
+  // 1. AUTH LISTENER
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      setAuthLoading(false); // Authentication check is complete
+
+      if (currentUser) {
+        // REMOVE the automatic redirection: setCurrentPage('home');
+        // The user object is now set, but the page remains 'landing' (unless changed elsewhere)
+      } else {
+        setPantryItems([]);
+        setCurrentPage('landing');
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  // 2. FETCH DATA
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -88,115 +121,150 @@ export default function App() {
             name: data.recipeName || data.name || "Untitled Recipe",
             cost: derivedCost,
             time: derivedTime,
-            skillLevel: rawSkill.toLowerCase(), 
+            skillLevel: (data.skillLevel || "beginner").toLowerCase(),
             ingredients: cleanIngredients,
             instructions: cleanInstructions
           };
         }) as Recipe[];
         setRecipes(recipesList);
 
-        // B. Fetch Smart Pantry
-        const pantrySnapshot = await getDocs(collection(db, "SmartPantry"));
-        const pantryList = pantrySnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        })) as PantryItem[];
-        setPantryItems(pantryList);
+        if (user) {
+            const userDocRef = doc(db, "users", user.uid);
+            const userDocSnap = await getDoc(userDocRef);
+
+            if (userDocSnap.exists()) {
+                const userData = userDocSnap.data();
+                setPantryItems(userData.pantryItems || []);
+                setShoppingListItems(userData.shoppingListItems || [])
+            } else {
+                setPantryItems([]);
+                setShoppingListItems([])
+            }
+        }
 
       } catch (error) {
         console.error("Error fetching data:", error);
       }
     };
 
-    fetchData();
-  }, []);
+    if (!authLoading) {
+        fetchData();
+    }
+  }, [user, authLoading]);
 
-  // ---------------------------------------------------------
-  // 2. ADD ITEM TO DATABASE
-  // ---------------------------------------------------------
-  const addPantryItem = async (item: Omit<PantryItem, 'id'>) => {
+  const addShoppingListItem = async (item: Omit<ShoppingListItem, 'id'>) => {
+    if (!user) return;
     try {
-      // 1. Write to Firestore
-      const docRef = await addDoc(collection(db, "SmartPantry"), item);
-      
-      // 2. Update Local State
-      const newItem = { ...item, id: docRef.id };
-      setPantryItems([...pantryItems, newItem]);
+      const newItem = { ...item, id: Date.now().toString() };
+      const updatedList = [...shoppingListItems, newItem];
+      const userDocRef = doc(db, "users", user.uid);
+
+      await updateDoc(userDocRef, {
+        shoppingListItems: updatedList
+      });
+
+      setShoppingListItems(updatedList);
     } catch (error) {
       console.error("Error adding pantry item:", error);
-      alert("Failed to save item to database. Check console.");
+      try {
+        const userDocRef = doc(db, "users", user!.uid);
+        await setDoc(userDocRef, { shoppingListItems: [...pantryItems, { ...item, id: Date.now().toString() }] }, { merge: true });
+      } catch (e) {
+        alert("Failed to save item. Please try again.");
+      }
     }
   };
 
-  // ---------------------------------------------------------
-  // 3. COOK & DEDUCT LOGIC
-  // ---------------------------------------------------------
+  // 3. ADD ITEM
+  const addPantryItem = async (item: Omit<PantryItem, 'id'>) => {
+    if (!user) return;
+
+    try {
+      const newItem = { ...item, id: Date.now().toString() };
+      const updatedList = [...pantryItems, newItem];
+      const userDocRef = doc(db, "users", user.uid);
+      
+      await updateDoc(userDocRef, {
+        pantryItems: updatedList
+      });
+
+      setPantryItems(updatedList);
+    } catch (error) {
+      console.error("Error adding pantry item:", error);
+      try {
+          const userDocRef = doc(db, "users", user!.uid);
+          await setDoc(userDocRef, { pantryItems: [...pantryItems, { ...item, id: Date.now().toString() }] }, { merge: true });
+      } catch (e) {
+          alert("Failed to save item. Please try again.");
+      }
+    }
+  };
+
+  // 4. COOK & DEDUCT LOGIC
   const handleMakeRecipe = async (recipe: Recipe) => {
     console.log("Cooking:", recipe.name);
     let deductionCount = 0;
 
-    // We use Promise.all to wait for all database updates to finish
-    const updatedPantry = await Promise.all(pantryItems.map(async (pantryItem) => {
-      
-      // Check if recipe ingredients match pantry item name
+    const updatedPantry = pantryItems.map((pantryItem) => {
       const matchedIngredientString = recipe.ingredients.find(ingStr => 
         ingStr.toLowerCase().includes(pantryItem.name.toLowerCase())
       );
 
       if (matchedIngredientString) {
-        // Extract numbers (e.g. "2" from "2 lbs", "10" from "10 tomatoes")
         const recipeQtyMatch = matchedIngredientString.match(/(\d+(\.\d+)?)/);
         const pantryQtyMatch = pantryItem.quantity.match(/(\d+(\.\d+)?)/);
 
         if (recipeQtyMatch && pantryQtyMatch) {
           const recipeQty = parseFloat(recipeQtyMatch[0]);
           const pantryQty = parseFloat(pantryQtyMatch[0]);
-          
-          // Calculate new quantity
+
           let newQty = pantryQty - recipeQty;
           if (newQty < 0) newQty = 0;
 
-          // Replace the old number string with the new number
           const newQuantityString = pantryItem.quantity.replace(pantryQtyMatch[0], newQty.toString());
           
           // Update Firebase if changed
           if (newQuantityString !== pantryItem.quantity) {
-             try {
-                const itemRef = doc(db, "SmartPantry", pantryItem.id);
-                await updateDoc(itemRef, { quantity: newQuantityString });
-                deductionCount++;
-             } catch (e) {
-                console.error("Failed to update pantry DB:", e);
-             }
+             deductionCount++;
           }
           
           return { ...pantryItem, quantity: newQuantityString };
         }
       }
       return pantryItem;
-    }));
+    });
 
-    setPantryItems(updatedPantry);
-    
     if (deductionCount > 0) {
-        alert(`Success! Cooked ${recipe.name}. Updated quantities for ${deductionCount} ingredients in your pantry.`);
+        try {
+            const userDocRef = doc(db, "users", user.uid);
+            await updateDoc(userDocRef, {
+                pantryItems: updatedPantry
+            });
+            setPantryItems(updatedPantry);
+            alert(`Success! Cooked ${recipe.name}. Updated quantities for ${deductionCount} ingredients.`);
+        } catch (e) {
+            console.error("Failed to update pantry DB:", e);
+            alert("Error updating database.");
+        }
     } else {
-        alert(`Cooked ${recipe.name}! (No matching pantry items found to deduct automatically).`);
+        alert(`Cooked ${recipe.name}! (No matching pantry items found to deduct).`);
     }
   };
 
-  // ---------------------------------------------------------
-  // NAVIGATION & AUTH
-  // ---------------------------------------------------------
+  const handleSaveProfile = (profile: UserProfile) => { setUserProfile(profile); setCurrentPage('home'); };
+
+  if (authLoading) {
+      return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+  }
+
   const handleLogin = () => { setIsAuthenticated(true); setCurrentPage('home'); };
   const handleSignUp = () => { setIsAuthenticated(true); setCurrentPage('home'); };
   const handleSignOut = () => { setIsAuthenticated(false); setCurrentPage('landing'); };
-  const handleSaveProfile = (profile: UserProfile) => { setUserProfile(profile); setCurrentPage('home'); };
 
   if (!isAuthenticated) {
     if (currentPage === 'landing') return <LandingPage onGetStarted={() => setCurrentPage('signup')} onLogin={() => setCurrentPage('login')} />;
     if (currentPage === 'login') return <Login onLogin={handleLogin} onBackToLanding={() => setCurrentPage('landing')} onSwitchToSignUp={() => setCurrentPage('signup')} />;
-    if (currentPage === 'signup') return <SignUp onSignUp={handleSignUp} onBackToLanding={() => setCurrentPage('landing')} onSwitchToLogin={() => setCurrentPage('login')} />;
+    if (currentPage === 'signup') return <SignUp onSignUp={handleSignUp} onBackToLanding={() => setCurrentPage('landing')} onSwitchToLogin={() => setCurrentPage('login')} />;
   }
 
   return (
@@ -216,11 +284,15 @@ export default function App() {
               <button onClick={() => setCurrentPage('generator')} className={`inline-flex items-center px-1 pt-1 border-b-2 ${currentPage === 'generator' ? 'border-orange-500 text-gray-900' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}`}>Recipe Generator</button>
             </div>
             <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-3">
-                <Label htmlFor="mode-toggle" className="text-sm text-gray-700">{isStructuredMode ? 'Structured' : 'Flexible'}</Label>
-                <Switch id="mode-toggle" checked={isStructuredMode} onCheckedChange={setIsStructuredMode} />
-              </div>
-              <Button variant="ghost" size="sm" onClick={() => setCurrentPage('profile')}><User className="size-4" /></Button>
+              {/* Only show the toggle on the Home page */}
+              {currentPage === 'home' && (
+                <div className="flex items-center space-x-3">
+                  <Label htmlFor="mode-toggle" className="text-sm text-gray-700">{isStructuredMode ? 'Structured' : 'Flexible'}</Label>
+                  <Switch id="mode-toggle" checked={isStructuredMode} onCheckedChange={setIsStructuredMode} />
+                </div>
+              )}
+
+              <Button variant="ghost" size="sm" onClick={() => setCurrentPage('profile')}><UserIcon className="size-4" /></Button>
               <Button variant="ghost" size="sm" onClick={handleSignOut}><LogOut className="size-4" /></Button>
             </div>
           </div>
@@ -236,7 +308,7 @@ export default function App() {
         {currentPage === 'discovery' && <RecipeDiscovery recipes={recipes} onMakeRecipe={handleMakeRecipe} />}
         
         {/* Pass props to SmartPantry: List of pantry items AND the Add Handler */}
-        {currentPage === 'pantry' && <SmartPantry pantryItems={pantryItems} onAddItem={addPantryItem} />}
+        {currentPage === 'pantry' && < SmartPantry pantryItems={pantryItems} onAddItem={addPantryItem} shoppingListItems={shoppingListItems} onAddShoppingItem={addShoppingListItem}/>}
         
         {currentPage === 'generator' && <RecipeGenerator pantryItems={pantryItems} />}
       </main>

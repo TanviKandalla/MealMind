@@ -14,24 +14,25 @@ type RecipeGeneratorProps = {
 };
 
 export function RecipeGenerator({ pantryItems }: RecipeGeneratorProps) {
-  // State for Filter Dialog
   const [showFilterDialog, setShowFilterDialog] = useState(false);
   const [costFilter, setCostFilter] = useState<string>('all');
   const [timeFilter, setTimeFilter] = useState<string>('all');
   const [skillFilter, setSkillFilter] = useState<string>('all');
   const [userNotes, setUserNotes] = useState<string>('');
-  
+
   // State for AI Generation
-  const [isLoading, setIsLoading] = useState(false); 
-  const [generatedRecipe, setGeneratedRecipe] = useState<string | null>(null); 
-  const [showRecipeDialog, setShowRecipeDialog] = useState(false); 
+  const [isLoading, setIsLoading] = useState(false);
+  const [generatedRecipe, setGeneratedRecipe] = useState<string | null>(null);
+  const [showRecipeDialog, setShowRecipeDialog] = useState(false);
 
   const handleWhatCanIMake = () => {
     setGeneratedRecipe(null); // Clear previous recipe
     setShowFilterDialog(true);
   };
 
-  const handleGenerateRecipes = async () => {
+  const handleGenerateRecipes = () => {
+    // In a real app, this would filter recipes based on the selected filters
+    console.log('Filters:', { costFilter, timeFilter, skillFilter });
     setShowFilterDialog(false);
     setIsLoading(true);
 
@@ -40,7 +41,7 @@ export function RecipeGenerator({ pantryItems }: RecipeGeneratorProps) {
         time: timeFilter,
         skill: skillFilter,
     };
-    
+
     // 💡 Connection Point: Calling the imported function and passing data
     const recipe = await generateRecipe({
         ingredients: pantryItems, // <-- Data from App.tsx via props
@@ -51,14 +52,14 @@ export function RecipeGenerator({ pantryItems }: RecipeGeneratorProps) {
     setGeneratedRecipe(recipe);
     setIsLoading(false);
     setShowRecipeDialog(true);
-    
+
     // Reset filters and notes
     setCostFilter('all');
     setTimeFilter('all');
     setSkillFilter('all');
     setUserNotes('');
   };
-  
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
       {/* Hero Section */}
@@ -138,7 +139,7 @@ export function RecipeGenerator({ pantryItems }: RecipeGeneratorProps) {
           </div>
         </DialogContent>
       </Dialog>
-      
+
       {/* Recipe Result Dialog */}
       <Dialog open={showRecipeDialog} onOpenChange={setShowRecipeDialog}>
         <DialogContent className="max-w-xl h-[80vh] flex flex-col">
