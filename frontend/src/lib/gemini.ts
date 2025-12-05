@@ -46,23 +46,24 @@ export async function generateRecipe({ ingredients, filters, notes = '' }: {
       
       Please present the output in **Markdown format** for easy reading.
     `;
-  
-    try {
-      const response = await genAI.getGenerativeModel({ model: "gemini-2.5-flash" }).generateContent({
-        contents: [{ role: "user", parts: [{ text: prompt }] }], 
-      });
-      
-      // Check if content exists before attempting to return it
-      if ((response as any).candidates && (response as any).candidates.length > 0) {
-          // Return the text safely
-          return (response as any).text; 
-      } else {
-          // AI returned an empty or blocked response
-          return 'AI chef returned an empty response. Try a different request or check safety settings.';
-      }
-    } catch (error) {
-      console.error('Error generating recipe:', error);
-      // Return a user-friendly error message if the API call fails
-      return 'An error occurred while generating the recipe. Please check your network connection and API key.';
+
+  try {
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    const response = await model.generateContent("What is the capital of France?"); // <--- Simple input
+
+    const generatedText = (response as any).text;
+
+    // The standard way to get text is response.text
+    if (generatedText) {
+      return generatedText;
+    } else {
+      console.warn('AI chef returned an empty or blocked response:', response); // <-- CHECK THIS OUTPUT
+      const blockReason = (response as any).candidates?.[0]?.finishReason;
+      return `AI chef returned an empty response. Finish Reason: ${blockReason || 'Unknown'}. Try a different request or check safety settings.`;
     }
+  } catch (error) {
+    // This catches networking issues or authentication (API key) failures
+    console.error('Error generating recipe:', error);
+    return 'An error occurred while generating the recipe. Please check your network connection and API key.';
+  }
 }

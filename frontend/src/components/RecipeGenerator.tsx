@@ -30,34 +30,58 @@ export function RecipeGenerator({ pantryItems }: RecipeGeneratorProps) {
     setShowFilterDialog(true);
   };
 
-  const handleGenerateRecipes = () => {
-    // In a real app, this would filter recipes based on the selected filters
-    console.log('Filters:', { costFilter, timeFilter, skillFilter });
-    setShowFilterDialog(false);
+  const handleGenerateRecipes = async () => {
+    // ... (Filter setup and state management remains the same) ...
+    // ... (Logic to construct the prompt string: const prompt = `...`;) ...
+
     setIsLoading(true);
+    // const ingredientsList = ingredients.map(item => `${item.quantity} of ${item.name}`).join(', ');
 
-    const filters = {
-        cost: costFilter,
-        time: timeFilter,
-        skill: skillFilter,
-    };
+    const prompt = `
+      You are an expert chef and recipe generator. Create one detailed recipe based on the following:
+  
+      The recipe must include:
+      1. A creative recipe title.
+      2. A short description.
+      3. A clear list of ingredients (with required amounts).
+      4. Step-by-step instructions. (These MUST be in paragraph format, comma-separated. Do not use bullet points.)
+      
+      Please present the output in **Markdown format** for easy reading.
+      Ensure that the output is extremely short. Keep it under 20 lines of text.
+      
+      Other user instructions include:
+      1. Make it spicy please.
+    `;
 
-    // 💡 Connection Point: Calling the imported function and passing data
-    const recipe = await generateRecipe({
-        ingredients: pantryItems, // <-- Data from App.tsx via props
-        filters: filters,         // <-- Data from component state
-        notes: userNotes,         // <-- Data from component state
-    });
+    try {
+      const backendUrl = 'http://localhost:5000/api/generate-recipe'; // <-- MATCH PYTHON PORT
 
-    setGeneratedRecipe(recipe);
+      const response = await fetch(backendUrl, {
+        method: 'POST',
+        headers: {
+          // 1. MUST HAVE THIS HEADER
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ prompt: prompt}), // 2. MUST STRINGIFY THE DATA
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      // Use the recipe returned from the Python server
+      setGeneratedRecipe(data.recipe);
+
+    } catch (error) {
+      console.error('Error fetching recipe from backend:', error);
+      setGeneratedRecipe("Failed to load recipe. Check if the Python backend server is running.");
+    }
+
     setIsLoading(false);
     setShowRecipeDialog(true);
-
-    // Reset filters and notes
-    setCostFilter('all');
-    setTimeFilter('all');
-    setSkillFilter('all');
-    setUserNotes('');
+    // ... (Reset filters and notes) ...
   };
 
   return (
@@ -151,11 +175,11 @@ export function RecipeGenerator({ pantryItems }: RecipeGeneratorProps) {
           </DialogHeader>
           <div className="flex-grow overflow-y-auto p-4 border rounded-md">
             {generatedRecipe ? (
-              {/* ✅ DEBUG: Log the generated recipe content */}
-              {console.log("DEBUG: Generated Recipe Content (Length:", generatedRecipe.length, "):", generatedRecipe)}
-              <ReactMarkdown>{generatedRecipe}</ReactMarkdown>
+                // ✅ DEBUG: Log the generated recipe content (Removed the extra {} block)
+                console.log("DEBUG: Generated Recipe Content (Length:", generatedRecipe.length, "):", generatedRecipe),
+                    <ReactMarkdown>{generatedRecipe}</ReactMarkdown>
             ) : (
-              <p className="text-gray-500">No recipe generated yet. Try again!</p>
+                <p className="text-gray-500">No recipe generated yet. Try again!</p>
             )}
           </div>
           <div className="flex justify-end pt-4">
