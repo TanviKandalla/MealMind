@@ -7,7 +7,8 @@ import { Label } from './ui/label';
 import { Textarea } from './ui/textarea'; // Assuming you have this component
 import ReactMarkdown from 'react-markdown'; // Library needed for displaying Markdown
 import type { PantryItem } from '../App';
-import { generateRecipe } from '../lib/gemini'; // <--- IMPORT THE API FUNCTION
+// NOTE: The generateRecipe import is no longer used, but kept for type reference
+import { generateRecipe } from '../lib/gemini';
 
 type RecipeGeneratorProps = {
   pantryItems: PantryItem[];
@@ -31,15 +32,25 @@ export function RecipeGenerator({ pantryItems }: RecipeGeneratorProps) {
   };
 
   const handleGenerateRecipes = async () => {
-    // ... (Filter setup and state management remains the same) ...
-    // ... (Logic to construct the prompt string: const prompt = `...`;) ...
-
+    setShowFilterDialog(false);
     setIsLoading(true);
-    // const ingredientsList = ingredients.map(item => `${item.quantity} of ${item.name}`).join(', ');
 
+    // 1. COLLECT INGREDIENT LIST FROM PROPS
+    const ingredientsList = pantryItems
+    .map(item => `${item.quantity} of ${item.name}`)
+    .join(', ');
+
+    // 2. CONSTRUCT THE DYNAMIC PROMPT USING STATE VARIABLES
     const prompt = `
       You are an expert chef and recipe generator. Create one detailed recipe based on the following:
-  
+
+      Available Ingredients: ${ingredientsList || 'None listed. Suggest a recipe with common items.'}
+      Cost Preference: ${costFilter}
+      Time Preference: ${timeFilter}
+      Skill Level: ${skillFilter}
+      
+      Additional Notes/Dietary Restrictions: ${userNotes || 'N/A'}
+
       The recipe must include:
       1. A creative recipe title.
       2. A short description.
@@ -48,9 +59,6 @@ export function RecipeGenerator({ pantryItems }: RecipeGeneratorProps) {
       
       Please present the output in **Markdown format** for easy reading.
       Ensure that the output is extremely short. Keep it under 20 lines of text.
-      
-      Other user instructions include:
-      1. Make it spicy please.
     `;
 
     try {
@@ -59,10 +67,9 @@ export function RecipeGenerator({ pantryItems }: RecipeGeneratorProps) {
       const response = await fetch(backendUrl, {
         method: 'POST',
         headers: {
-          // 1. MUST HAVE THIS HEADER
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ prompt: prompt}), // 2. MUST STRINGIFY THE DATA
+        body: JSON.stringify({ prompt: prompt}), // Sending the dynamic prompt
       });
 
       if (!response.ok) {
@@ -81,7 +88,11 @@ export function RecipeGenerator({ pantryItems }: RecipeGeneratorProps) {
 
     setIsLoading(false);
     setShowRecipeDialog(true);
-    // ... (Reset filters and notes) ...
+    // Reset filters and notes
+    setCostFilter('all');
+    setTimeFilter('all');
+    setSkillFilter('all');
+    setUserNotes('');
   };
 
   return (
@@ -166,6 +177,12 @@ export function RecipeGenerator({ pantryItems }: RecipeGeneratorProps) {
 
       {/* Recipe Result Dialog */}
       <Dialog open={showRecipeDialog} onOpenChange={setShowRecipeDialog}>
+        {/*
+          CRITICAL CLASSES:
+          1. max-w-xl: Sets a maximum width.
+          2. h-[80vh]: Sets the dialog to a fixed height (80% of viewport height).
+          3. flex flex-col: Makes the content children stack vertically and allows flex-grow to work.
+        */}
         <DialogContent className="max-w-xl h-[80vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>🎉 Your AI-Generated Recipe!</DialogTitle>
@@ -173,15 +190,26 @@ export function RecipeGenerator({ pantryItems }: RecipeGeneratorProps) {
               Here is the recipe created for you based on your ingredients and preferences.
             </DialogDescription>
           </DialogHeader>
-          <div className="flex-grow overflow-y-auto p-4 border rounded-md">
+
+          {/*
+            SCROLLABLE CONTENT AREA:
+            1. flex-grow: Takes up all available vertical space in the flex column (the 80vh dialog).
+            2. overflow-y-auto: Enables vertical scrolling when content exceeds the allotted height.
+          */}
+          <div className="flex-grow overflow-y-auto p-4 border rounded-md bg-gray-50">
             {generatedRecipe ? (
-                // ✅ DEBUG: Log the generated recipe content (Removed the extra {} block)
-                console.log("DEBUG: Generated Recipe Content (Length:", generatedRecipe.length, "):", generatedRecipe),
-                    <ReactMarkdown>{generatedRecipe}</ReactMarkdown>
+                <>
+                  {/* Cleaned up console.log to be a valid expression followed by ReactMarkdown */}
+                  {console.log("DEBUG: Generated Recipe Content (Length:", generatedRecipe.length, "):", generatedRecipe)}
+                  <ReactMarkdown>
+                    {generatedRecipe}
+                  </ReactMarkdown>
+                </>
             ) : (
                 <p className="text-gray-500">No recipe generated yet. Try again!</p>
             )}
           </div>
+
           <div className="flex justify-end pt-4">
             <Button onClick={() => setShowRecipeDialog(false)}>
               Close
