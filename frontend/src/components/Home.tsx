@@ -7,6 +7,20 @@ import { Textarea } from './ui/textarea';
 import { Card, CardContent } from './ui/card';
 import type { PantryItem, MealPlan } from '../App';
 
+// Define the expected structure from the AI JSON response for a single day
+type RawMealPlanDay = {
+  day: string;
+  breakfast: string;
+  lunch: string;
+  dinner: string;
+  snack: string;
+};
+
+// Define the full plan structure expected from the AI
+type RawMealPlanResponse = {
+  plan: RawMealPlanDay[];
+};
+
 type HomeProps = {
   pantryItems: PantryItem[];
   isStructuredMode: boolean;
@@ -26,6 +40,12 @@ export function Home({ pantryItems, isStructuredMode, mealPlan, onNavigateToPant
   const [mealPlanBudget, setMealPlanBudget] = useState<string>('all');
   const [mealPlanTime, setMealPlanTime] = useState<string>('all');
   const [mealPlanSkill, setMealPlanSkill] = useState<string>('all');
+
+  // NEW STATE: Loading indicator and raw response storage for meal plan
+  const [isGeneratingMealPlan, setIsGeneratingMealPlan] = useState(false);
+  const [rawMealPlanResponse, setRawMealPlanResponse] = useState<string | null>(null);
+  // State to hold the final parsed, structured meal plan for display
+  const [generatedMealPlan, setGeneratedMealPlan] = useState<RawMealPlanDay[] | null>(null);
 
   const handleWhatCanIMake = () => {
     setShowFilterDialog(true);
@@ -47,60 +67,184 @@ export function Home({ pantryItems, isStructuredMode, mealPlan, onNavigateToPant
     setAdditionalNotes('');
   };
 
-  const handleGenerateMealPlan = () => {
-    // In a real app, this would generate a new meal plan based on the selected filters
-    console.log('Meal Plan Filters:', { budget: mealPlanBudget, time: mealPlanTime, skill: mealPlanSkill });
-    setShowMealPlanDialog(false);
+  const handleGenerateMealPlan = async () => {
+    setIsGeneratingMealPlan(true);
+    setGeneratedMealPlan(null); // Clear previous plan
+    setRawMealPlanResponse(null); // Clear previous debug response
+    setShowMealPlanDialog(false); // Close the dialog immediately
+
+    // 1. Collect Ingredients
+    const ingredientsList = pantryItems
+    .map(item => `${item.quantity} of ${item.name}`)
+    .join(', ');
+
+    // 2. Construct the Dynamic Prompt (Updated to include all 4 meals/snack)
+    const prompt = `
+            You are an expert chef and meal planner. Generate a 5-day meal plan (Monday to Friday) based on the following:
+
+            Available Ingredients: ${ingredientsList || 'None listed. Prioritize using common, affordable items.'}
+            Budget Preference: ${mealPlanBudget}
+            Time Preference: ${mealPlanTime}
+            Skill Level: ${mealPlanSkill}
+            
+            The output MUST be a JSON object with the following structure:
+            {
+              "plan": [
+                { "day": "Monday", "breakfast": "Recipe Name for Breakfast", "lunch": "Recipe Name for Lunch", "dinner": "Recipe Name for Dinner", "snack": "Snack Idea" },
+                // ... Tuesday to Friday ...
+              ]
+            }
+            Do not include any introductory or concluding text outside of the JSON block.
+        `;
+
+    try {
+      // Assuming a new backend endpoint for meal plan generation (Using existing endpoint for demo)
+      const backendUrl = 'http://localhost:5000/api/generate-recipe';
+
+      const response = await fetch(backendUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ prompt: prompt }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const rawTextResponse = data.recipe; // The key is 'recipe' from the Python response
+
+      console.log('Successfully generated meal plan data:', rawTextResponse);
+
+      // 3. PARSE AND STRUCTURE THE JSON RESPONSE
+      try {
+        // ✅ FIX 1: Use regex to find and isolate the JSON block.
+        // This regex captures content starting from the first { and ending at the last }
+        const jsonMatch = rawTextResponse.match(/\{[\s\S]*\}/);
+
+        if (!jsonMatch || jsonMatch.length === 0) {
+          throw new Error("Could not find a valid JSON object within the AI's response.");
+        }
+
+        const jsonString = jsonMatch[0]; // The captured JSON string
+
+        const parsedData: RawMealPlanResponse = JSON.parse(jsonString);
+
+        if (parsedData.plan && Array.isArray(parsedData.plan)) {
+          setGeneratedMealPlan(parsedData.plan); // Set the structured plan for display
+        } else {
+          throw new Error("Invalid 'plan' array structure returned by the AI.");
+        }
+      } catch (jsonError) {
+        console.error("Failed to parse AI response as JSON:", rawTextResponse, jsonError);
+        // Display a more specific message about the parsing failure
+        setRawMealPlanResponse(`AI output was received but failed to parse as JSON. Raw output starts: ${rawTextResponse.substring(0, 300)}...`);
+        setGeneratedMealPlan(null);
+      }
+
+      // Set the raw response for debugging (even if parsing succeeded)
+      setRawMealPlanResponse(rawTextResponse);
+
+
+    } catch (error) {
+      console.error('Error fetching meal plan from backend:', error);
+      setRawMealPlanResponse(`Failed to fetch meal plan. Error: ${error instanceof Error ? error.message : String(error)}`);
+      setGeneratedMealPlan(null);
+    }
+
+    setIsGeneratingMealPlan(false);
+
     // Reset filters
     setMealPlanBudget('all');
     setMealPlanTime('all');
     setMealPlanSkill('all');
   };
 
-  return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-      {/* Hero Section */}
-      <div className="text-center mb-12">
-        <h1 className="text-gray-900 mb-6 text-3xl font-bold">Welcome to Your Recipe Assistant</h1>
-        
-        {!isStructuredMode ? (
-          <Button
-            onClick={handleWhatCanIMake}
-            size="lg"
-            className="px-8 py-6 text-lg bg-gray-900 hover:bg-gray-800 text-white"
-          >
-            What can I make now?
-          </Button>
-        ) : (
-          <div className="max-w-3xl mx-auto">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-gray-900 text-xl font-semibold">Your Meal Plan for the Week</h2>
-              <Button onClick={() => setShowMealPlanDialog(true)}>
-                Generate New Meal Plan
-              </Button>
-            </div>
-            <div className="space-y-3">
-              {mealPlan.map((meal) => (
-                <Card key={meal.id}>
-                  <CardContent className="flex justify-between items-center p-4">
-                    <div className="flex items-center space-x-4">
-                      <span className="text-gray-900 min-w-[100px] font-medium">{meal.day}</span>
-                      <span className="text-gray-700">{meal.recipe.name}</span>
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleShowRecipe(meal)}
-                    >
-                      Show Recipe
-                    </Button>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+  // Determine which meal plan to display
+  const currentPlan = generatedMealPlan || mealPlan;
+
+  // Function to render a single meal card in the new structure
+  const renderNewMealCard = (meal: RawMealPlanDay) => (
+      <Card key={meal.day}>
+        <CardContent className="flex flex-col p-4 space-y-2">
+          <span className="text-gray-900 font-bold border-b pb-1 mb-2">{meal.day}</span>
+          <div className="grid grid-cols-2 gap-2 text-sm">
+            <p><span className="font-semibold text-orange-600">Breakfast:</span> {meal.breakfast}</p>
+            <p><span className="font-semibold text-orange-600">Lunch:</span> {meal.lunch}</p>
+            <p><span className="font-semibold text-orange-600">Dinner:</span> {meal.dinner}</p>
+            <p><span className="font-semibold text-orange-600">Snack:</span> {meal.snack}</p>
           </div>
-        )}
-      </div>
+        </CardContent>
+      </Card>
+  );
+
+  // The existing mealPlan prop uses a different structure, so we need a render function for it
+  const renderOldMealCard = (meal: MealPlan) => (
+      <Card key={meal.id}>
+        <CardContent className="flex justify-between items-center p-4">
+          <div className="flex items-center space-x-4">
+            <span className="text-gray-900 min-w-[100px] font-medium">{meal.day}</span>
+            {/* Displaying just the recipe name for brevity */}
+            <span className="text-gray-700">{meal.recipe.name}</span>
+          </div>
+          <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleShowRecipe(meal)}
+          >
+            Show Recipe
+          </Button>
+        </CardContent>
+      </Card>
+  );
+
+  return (
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        {/* Hero Section */}
+        <div className="text-center mb-12">
+          <h1 className="text-gray-900 mb-6 text-3xl font-bold">Welcome to Your Recipe Assistant</h1>
+
+          {!isStructuredMode ? (
+              <Button
+                  onClick={handleWhatCanIMake}
+                  size="lg"
+                  className="px-8 py-6 text-lg bg-gray-900 hover:bg-gray-800 text-white"
+              >
+                What can I make now?
+              </Button>
+          ) : (
+              <div className="max-w-3xl mx-auto">
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-gray-900 text-xl font-semibold">
+                    {generatedMealPlan ? 'AI-Generated Meal Plan' : 'Your Default Meal Plan'}
+                  </h2>
+                  <Button onClick={() => setShowMealPlanDialog(true)} disabled={isGeneratingMealPlan}>
+                    {isGeneratingMealPlan ? 'Generating...' : 'Generate New Meal Plan'}
+                  </Button>
+                </div>
+                <div className="space-y-3">
+                  {/* Updated Display Logic */}
+                  {generatedMealPlan ? (
+                      // Render the new, detailed AI-generated plan
+                      generatedMealPlan.map(renderNewMealCard)
+                  ) : (
+                      // Fallback to rendering the existing mealPlan prop
+                      mealPlan.map(renderOldMealCard)
+                  )}
+                </div>
+
+                {/* DEBUG OUTPUT: Show raw response only if the structured parsing failed */}
+                {rawMealPlanResponse && !generatedMealPlan && (
+                    <div className="mt-8 p-4 bg-red-100 border border-red-300 rounded-md whitespace-pre-wrap text-xs text-red-700">
+                      <h3 className="font-semibold mb-2">Error: Failed to Parse Structured Plan</h3>
+                      <p>{rawMealPlanResponse}</p>
+                    </div>
+                )}
+              </div>
+          )}
+        </div>
 
       {/* Pantry Preview Section */}
       <div className="mt-16">
@@ -247,78 +391,83 @@ export function Home({ pantryItems, isStructuredMode, mealPlan, onNavigateToPant
         </DialogContent>
       </Dialog>
 
-      {/* Generate Meal Plan Dialog */}
-      <Dialog open={showMealPlanDialog} onOpenChange={setShowMealPlanDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Generate New Meal Plan</DialogTitle>
-            <DialogDescription>
-              Set your preferences for the weekly meal plan.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 mt-4">
-            <div>
-              <Label htmlFor="budget-filter">Budget</Label>
-              <Select
-                value={mealPlanBudget}
-                onValueChange={setMealPlanBudget}
-              >
-                <SelectTrigger id="budget-filter" className="mt-2">
-                  <SelectValue placeholder="Any budget" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Any</SelectItem>
-                  <SelectItem value="low">Low</SelectItem>
-                  <SelectItem value="medium">Medium</SelectItem>
-                  <SelectItem value="high">High</SelectItem>
-                </SelectContent>
-              </Select>
+        {/* Generate Meal Plan Dialog */}
+        <Dialog open={showMealPlanDialog} onOpenChange={setShowMealPlanDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Generate New Meal Plan</DialogTitle>
+              <DialogDescription>
+                Set your preferences for the weekly meal plan.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 mt-4">
+              {/* ... (Budget, Time, Skill Selects remain unchanged) ... */}
+              <div>
+                <Label htmlFor="budget-filter">Budget</Label>
+                <Select
+                    value={mealPlanBudget}
+                    onValueChange={setMealPlanBudget}
+                >
+                  <SelectTrigger id="budget-filter" className="mt-2">
+                    <SelectValue placeholder="Any budget" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Any</SelectItem>
+                    <SelectItem value="low">Low</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="high">High</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="time-to-cook-filter">Time to Cook</Label>
+                <Select
+                    value={mealPlanTime}
+                    onValueChange={setMealPlanTime}
+                >
+                  <SelectTrigger id="time-to-cook-filter" className="mt-2">
+                    <SelectValue placeholder="Any time" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Any</SelectItem>
+                    <SelectItem value="quick">Quick (30 min or less)</SelectItem>
+                    <SelectItem value="medium">Medium (30-60 min)</SelectItem>
+                    <SelectItem value="long">Long (60+ min)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="skill-level-filter">Skill Level</Label>
+                <Select
+                    value={mealPlanSkill}
+                    onValueChange={setMealPlanSkill}
+                >
+                  <SelectTrigger id="skill-level-filter" className="mt-2">
+                    <SelectValue placeholder="Any level" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Any</SelectItem>
+                    <SelectItem value="beginner">Beginner</SelectItem>
+                    <SelectItem value="intermediate">Intermediate</SelectItem>
+                    <SelectItem value="advanced">Advanced</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex justify-end space-x-2 pt-4">
+                <Button variant="outline" onClick={() => setShowMealPlanDialog(false)} disabled={isGeneratingMealPlan}>
+                  Cancel
+                </Button>
+                <Button
+                    onClick={handleGenerateMealPlan}
+                    disabled={isGeneratingMealPlan}
+                    className="bg-orange-600 hover:bg-orange-700 text-white"
+                >
+                  {isGeneratingMealPlan ? 'Generating...' : 'Generate Plan'}
+                </Button>
+              </div>
             </div>
-            <div>
-              <Label htmlFor="time-to-cook-filter">Time to Cook</Label>
-              <Select
-                value={mealPlanTime}
-                onValueChange={setMealPlanTime}
-              >
-                <SelectTrigger id="time-to-cook-filter" className="mt-2">
-                  <SelectValue placeholder="Any time" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Any</SelectItem>
-                  <SelectItem value="quick">Quick (30 min or less)</SelectItem>
-                  <SelectItem value="medium">Medium (30-60 min)</SelectItem>
-                  <SelectItem value="long">Long (60+ min)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label htmlFor="skill-level-filter">Skill Level</Label>
-              <Select
-                value={mealPlanSkill}
-                onValueChange={setMealPlanSkill}
-              >
-                <SelectTrigger id="skill-level-filter" className="mt-2">
-                  <SelectValue placeholder="Any level" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Any</SelectItem>
-                  <SelectItem value="beginner">Beginner</SelectItem>
-                  <SelectItem value="intermediate">Intermediate</SelectItem>
-                  <SelectItem value="advanced">Advanced</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex justify-end space-x-2 pt-4">
-              <Button variant="outline" onClick={() => setShowMealPlanDialog(false)}>
-                Cancel
-              </Button>
-              <Button onClick={handleGenerateMealPlan} className="bg-orange-600 hover:bg-orange-700 text-white">
-                Generate Plan
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-    </div>
+          </DialogContent>
+        </Dialog>
+      </div>
   );
 }
