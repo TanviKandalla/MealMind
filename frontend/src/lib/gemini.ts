@@ -49,12 +49,17 @@ export async function generateRecipe({ ingredients, filters, notes = '' }: {
   
     try {
       const response = await genAI.getGenerativeModel({ model: "gemini-2.5-flash" }).generateContent({
-        // Correct Content structure for the prompt
         contents: [{ role: "user", parts: [{ text: prompt }] }], 
       });
       
-      // Use type assertion to resolve TypeScript error on '.text'
-      return (response as any).text; 
+      // Check if content exists before attempting to return it
+      if ((response as any).candidates && (response as any).candidates.length > 0) {
+          // Return the text safely
+          return (response as any).text; 
+      } else {
+          // AI returned an empty or blocked response
+          return 'AI chef returned an empty response. Try a different request or check safety settings.';
+      }
     } catch (error) {
       console.error('Error generating recipe:', error);
       // Return a user-friendly error message if the API call fails

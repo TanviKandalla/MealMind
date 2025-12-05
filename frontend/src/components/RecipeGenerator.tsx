@@ -150,6 +150,8 @@ export function RecipeGenerator({ pantryItems }: RecipeGeneratorProps) {
           </DialogHeader>
           <div className="flex-grow overflow-y-auto p-4 border rounded-md">
             {generatedRecipe ? (
+              {/* ✅ DEBUG: Log the generated recipe content */}
+              {console.log("DEBUG: Generated Recipe Content (Length:", generatedRecipe.length, "):", generatedRecipe)}
               <ReactMarkdown>{generatedRecipe}</ReactMarkdown>
             ) : (
               <p className="text-gray-500">No recipe generated yet. Try again!</p>
